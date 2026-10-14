@@ -18,6 +18,42 @@ coming in a later version." Text input through the command bar is unaffected.
 Revisit once a provider-transcription fallback (spec 11.6, OpenAI-compatible
 `/audio/transcriptions`) or the whisper-rs toolchain is in place.
 
+## 2026-10-15 — Custom `rusqlite` command layer instead of `tauri-plugin-sql`
+
+Spec section 2 names `tauri-plugin-sql` for SQLite access, driven through
+Drizzle's `sqlite-proxy` driver. Investigating that driver found a real
+correctness hazard: `db.transaction()` under `sqlite-proxy` works by sending
+literal `"begin"` / `"commit"` / `"rollback"` strings through the *same*
+single-statement proxy callback used for every other query, with no
+connection identity attached. `tauri-plugin-sql` hands out connections from
+an sqlx pool, so a later statement in the "same" transaction can silently
+land on a different physical connection — the `BEGIN` on connection A does
+nothing for a statement that runs on connection B, which would then
+autocommit immediately. For an app whose core principle is "every number
+shown can be explained from the event ledger" (spec section 1.3), a
+transaction that can silently fail to be atomic is not acceptable.
+
+Instead, `src-tauri` owns a single `rusqlite::Connection` behind a `Mutex`
+(the `commands/db.rs` module), exposed as three commands: `db_select`,
+`db_execute`, and `db_batch_atomic` (the last runs an array of statements
+inside one real `BEGIN`/`COMMIT`, which is safe by construction since there
+is only ever one connection). `packages/db`'s `sqlite-proxy` callback calls
+`db_select`/`db_execute` per statement and never uses drizzle's own
+`db.transaction()`; services that need atomic multi-row writes (spec 6.1:
+"writes activities, tasks and events in one transaction") call a
+`runAtomic()` helper that collects each query builder's `{sql, params}` via
+`.toSQL()` and sends the batch to `db_batch_atomic` in one round trip. IDs
+are always ULIDs generated in JS before the write, so no step ever depends
+on a previous statement's generated id within the same batch.
+
+This also drops one dependency (sqlx, pulled in by `tauri-plugin-sql`) in
+favour of `rusqlite` with the `bundled` feature, which compiles SQLite
+in-process from vendored C source — a lighter, synchronous dependency that
+fits a single-writer embedded desktop database and this build's optimization
+goal. The browser/`sql.js` platform adapter doesn't have this hazard at all
+(one in-process object, no pooling), so it uses sql.js's own `exec()` with a
+plain `BEGIN`/`COMMIT`/`ROLLBACK` for `runAtomic()`.
+
 ## 2026-10-14 — Placeholder app icon generated procedurally
 
 No design asset was supplied. Generated a simple rounded-square mark (a
