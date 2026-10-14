@@ -7,16 +7,21 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed": "vite-node src/cli.ts"
   },
   "dependencies": {
     "@ascendant/app": "workspace:*",
     "@ascendant/db": "workspace:*",
-    "@ascendant/engine": "workspace:*"
+    "@ascendant/engine": "workspace:*",
+    "drizzle-orm": "^0.38.3",
+    "sql.js": "^1.11.0"
   },
   "devDependencies": {
+    "@types/sql.js": "^1.4.9",
     "typescript": "^5.7.2",
     "tsx": "^4.19.2",
+    "vite-node": "^2.1.8",
     "vitest": "^2.1.8"
   }
 }

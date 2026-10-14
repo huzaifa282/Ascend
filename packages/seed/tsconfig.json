@@ -1,7 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022"]
+    // DOM lib is needed only because @ascendant/app's raw .ts source (no
+    // separate declaration build) is type-checked transitively here too;
+    // packages/seed itself never touches a DOM API.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": ["src"]
 }

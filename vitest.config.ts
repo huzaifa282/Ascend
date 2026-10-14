@@ -1,6 +1,10 @@
 import { defineConfig } from 'vitest/config';
-import path from 'node:path';
 
+// No `resolve.alias` for the @ascendant/* workspace packages: pnpm already
+// symlinks them into node_modules, and each has "main" pointing at its own
+// src/index.ts, so bare specifiers resolve correctly without one. Aliasing
+// just the bare package name here previously broke deep subpath imports
+// (e.g. `@ascendant/app/src/platform/browser`) by double-prefixing "src".
 export default defineConfig({
   test: {
     environment: 'node',
@@ -21,16 +25,6 @@ export default defineConfig({
         branches: 95,
         functions: 100,
       },
-    },
-  },
-  resolve: {
-    alias: {
-      '@ascendant/engine': path.resolve(__dirname, 'packages/engine/src'),
-      '@ascendant/db': path.resolve(__dirname, 'packages/db/src'),
-      '@ascendant/llm': path.resolve(__dirname, 'packages/llm/src'),
-      '@ascendant/ui': path.resolve(__dirname, 'packages/ui/src'),
-      '@ascendant/app': path.resolve(__dirname, 'packages/app/src'),
-      '@ascendant/seed': path.resolve(__dirname, 'packages/seed/src'),
     },
   },
 });

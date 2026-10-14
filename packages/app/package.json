@@ -15,16 +15,21 @@
     "@ascendant/llm": "workspace:*",
     "@ascendant/ui": "workspace:*",
     "@tanstack/react-query": "^5.62.11",
+    "@tauri-apps/api": "^2.1.1",
+    "drizzle-orm": "^0.38.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.1.1",
+    "sql.js": "^1.11.0",
     "zod": "^3.24.1",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/sql.js": "^1.4.9",
     "typescript": "^5.7.2",
+    "vite": "^6.0.7",
     "vitest": "^2.1.8"
   }
 }

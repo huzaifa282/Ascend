@@ -83,21 +83,31 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tseslint,
+      import: importPlugin,
+    },
+    rules: {
+      ...tseslint.configs.recommended.rules,
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  {
+    // React/hooks rules only make sense where JSX actually lives — a plain
+    // service module named e.g. `useShield` (packages/app/src/services) is
+    // not a React hook and shouldn't be linted as one.
+    files: ['**/*.tsx'],
+    plugins: {
       react,
       'react-hooks': reactHooks,
-      import: importPlugin,
     },
     settings: {
       react: { version: 'detect' },
     },
     rules: {
-      ...tseslint.configs.recommended.rules,
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
   {

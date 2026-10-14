@@ -8,6 +8,9 @@ export type NewTitleRow = typeof titles.$inferInsert;
 
 export function createTitlesRepo(db: Db) {
   return {
+    async create(row: NewTitleRow): Promise<void> {
+      await db.insert(titles).values(row);
+    },
     async createMany(rows: NewTitleRow[]): Promise<void> {
       if (rows.length === 0) return;
       await db.insert(titles).values(rows);

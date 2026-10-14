@@ -1,0 +1,1 @@
+ALTER TABLE `profile` ADD `last_day_close_date` text;

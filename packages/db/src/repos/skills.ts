@@ -18,6 +18,10 @@ export function createSkillsRepo(db: Db) {
     async list(): Promise<SkillRow[]> {
       return db.select().from(skills);
     },
+    async getById(id: string): Promise<SkillRow | undefined> {
+      const rows = await db.select().from(skills).where(eq(skills.id, id)).limit(1);
+      return rows[0];
+    },
     async getByName(name: string): Promise<SkillRow | undefined> {
       const rows = await db.select().from(skills).where(eq(skills.name, name)).limit(1);
       return rows[0];

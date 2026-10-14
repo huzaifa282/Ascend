@@ -12,6 +12,10 @@ export function createDailiesRepo(db: Db) {
     async create(row: NewDailyRow): Promise<void> {
       await db.insert(dailies).values(row);
     },
+    async getById(id: string): Promise<DailyRow | undefined> {
+      const rows = await db.select().from(dailies).where(eq(dailies.id, id)).limit(1);
+      return rows[0];
+    },
     async update(id: string, patch: Partial<NewDailyRow>): Promise<void> {
       await db.update(dailies).set(patch).where(eq(dailies.id, id));
     },

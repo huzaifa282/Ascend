@@ -54,6 +54,18 @@ goal. The browser/`sql.js` platform adapter doesn't have this hazard at all
 (one in-process object, no pooling), so it uses sql.js's own `exec()` with a
 plain `BEGIN`/`COMMIT`/`ROLLBACK` for `runAtomic()`.
 
+## 2026-10-15 — The browser/sql.js platform adapter loads lazily
+
+`packages/app/src/platform/index.ts`'s `getPlatform()` loads the sql.js
+browser adapter (and its ~650KB wasm asset) with a dynamic `import('./browser')`
+rather than a static one, so it never lands in the desktop app's eagerly
+loaded `main` bundle — that branch only runs when `isTauri()` is false. The
+top-level `@ascendant/app` barrel does not re-export `createBrowserSqlExecutor`
+/ `wrapSqlJsDatabase` either, so nothing pulls `browser.ts` in statically;
+`packages/seed`'s Node CLI imports it via the deep path
+`@ascendant/app/src/platform/browser` instead (no `package.json` "exports"
+map restricts subpaths, so this resolves fine).
+
 ## 2026-10-14 — Placeholder app icon generated procedurally
 
 No design asset was supplied. Generated a simple rounded-square mark (a

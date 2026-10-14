@@ -104,9 +104,6 @@ importers:
       '@tauri-apps/plugin-notification':
         specifier: ^2.2.0
         version: 2.6.0
-      '@tauri-apps/plugin-sql':
-        specifier: ^2.2.0
-        version: 2.5.0
       '@tauri-apps/plugin-window-state':
         specifier: ^2.2.0
         version: 2.5.0
@@ -168,6 +165,12 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.62.11
         version: 5.104.2(react@18.3.1)
+      '@tauri-apps/api':
+        specifier: ^2.1.1
+        version: 2.12.3
+      drizzle-orm:
+        specifier: ^0.38.3
+        version: 0.38.4(@types/react@18.3.31)(@types/sql.js@1.4.11)(react@18.3.1)(sql.js@1.14.2)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -177,6 +180,9 @@ importers:
       react-router-dom:
         specifier: ^7.1.1
         version: 7.18.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      sql.js:
+        specifier: ^1.11.0
+        version: 1.14.2
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -190,9 +196,15 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.5
         version: 18.3.7(@types/react@18.3.31)
+      '@types/sql.js':
+        specifier: ^1.4.9
+        version: 1.4.11
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      vite:
+        specifier: ^6.0.7
+        version: 6.4.4(@types/node@22.20.5)(jiti@1.21.7)(tsx@4.23.15)
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
@@ -204,7 +216,7 @@ importers:
         version: link:../engine
       drizzle-orm:
         specifier: ^0.38.3
-        version: 0.38.4(@types/react@18.3.31)(react@18.3.1)
+        version: 0.38.4(@types/react@18.3.31)(@types/sql.js@1.4.11)(react@18.3.1)(sql.js@1.14.2)
       ulid:
         specifier: ^2.3.0
         version: 2.4.0
@@ -264,13 +276,25 @@ importers:
       '@ascendant/engine':
         specifier: workspace:*
         version: link:../engine
+      drizzle-orm:
+        specifier: ^0.38.3
+        version: 0.38.4(@types/react@18.3.31)(@types/sql.js@1.4.11)(react@18.3.1)(sql.js@1.14.2)
+      sql.js:
+        specifier: ^1.11.0
+        version: 1.14.2
     devDependencies:
+      '@types/sql.js':
+        specifier: ^1.4.9
+        version: 1.4.11
       tsx:
         specifier: ^4.19.2
         version: 4.23.15
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      vite-node:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.5)
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
@@ -1476,9 +1500,6 @@ packages:
   '@tauri-apps/plugin-notification@2.6.0':
     resolution: {integrity: sha512-QvpsQ6L6uSGT/7AmIrEUrfOiqjP1S8HtBU1ieaX6bvOFXGjnoxbNMR9V+8PVhLqRdOntqevpUJ3c52S+1afsIw==}
 
-  '@tauri-apps/plugin-sql@2.5.0':
-    resolution: {integrity: sha512-wHzfXAgMbn3G1xWQWM1LlWLJkBEfO2CkAWvu+VYigRBXBocPXZqvGEkYWSM1RrZSSc4iJYAWXkFZrgTyu8zBkw==}
-
   '@tauri-apps/plugin-window-state@2.5.0':
     resolution: {integrity: sha512-ySI/32fpC1ZTslIZ00/wf9HujyDnkG3OPL16uuLjG53y1hTgjIJ9G2VPuOL1IV8GVr3xeF6lnr6h2T73HuGXow==}
 
@@ -1493,6 +1514,9 @@ packages:
 
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
+
+  '@types/emscripten@1.41.6':
+    resolution: {integrity: sha512-uN+9i8bFT5CUcZfyIEYDrSueACEyKGbUs5kC/72DGlZZoinh84sJfVV0i8UOJD1asdzkvLPBRrKs41kZ8MdEXg==}
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
@@ -1516,6 +1540,9 @@ packages:
 
   '@types/react@18.3.31':
     resolution: {integrity: sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw==}
+
+  '@types/sql.js@1.4.11':
+    resolution: {integrity: sha512-QXIx38p2ZThJaK9vP5ZdqdlRe1FG9I8SmCZOS7FHfB/2qPAjZwkL7/vlfPg6N/oWHuuOaGg/P/IRwfP2W0kWVQ==}
 
   '@typescript-eslint/eslint-plugin@8.71.2':
     resolution: {integrity: sha512-K72/pvT7qpm8q3k8G5u93NCSN1RcLxX5h7Gw0bQpbMXviBHeY6Nx1WEwmk9wP+eKTSQ8ecxvcgt/ZX/rB938xQ==}
@@ -2982,6 +3009,9 @@ packages:
     resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
     engines: {node: '>=0.10.0'}
 
+  sql.js@1.14.2:
+    resolution: {integrity: sha512-3ZGPovObMFrdw79zrUHbfdE/DLIsy8jdNdssmMSQuRAymedU6q84asPt0kgiqrdMYlPegDItiIMfmIXzZnYFcw==}
+
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
 
@@ -4101,10 +4131,6 @@ snapshots:
     dependencies:
       '@tauri-apps/api': 2.12.3
 
-  '@tauri-apps/plugin-sql@2.5.0':
-    dependencies:
-      '@tauri-apps/api': 2.12.3
-
   '@tauri-apps/plugin-window-state@2.5.0':
     dependencies:
       '@tauri-apps/api': 2.12.3
@@ -4130,6 +4156,8 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.8
 
+  '@types/emscripten@1.41.6': {}
+
   '@types/estree@1.0.9': {}
 
   '@types/json-schema@7.0.15': {}
@@ -4150,6 +4178,11 @@ snapshots:
     dependencies:
       '@types/prop-types': 15.7.15
       csstype: 3.2.3
+
+  '@types/sql.js@1.4.11':
+    dependencies:
+      '@types/emscripten': 1.41.6
+      '@types/node': 22.20.5
 
   '@typescript-eslint/eslint-plugin@8.71.2(@typescript-eslint/parser@8.71.2(eslint@9.39.5(jiti@1.21.7))(typescript@5.9.3))(eslint@9.39.5(jiti@1.21.7))(typescript@5.9.3)':
     dependencies:
@@ -4603,10 +4636,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.38.4(@types/react@18.3.31)(react@18.3.1):
+  drizzle-orm@0.38.4(@types/react@18.3.31)(@types/sql.js@1.4.11)(react@18.3.1)(sql.js@1.14.2):
     optionalDependencies:
       '@types/react': 18.3.31
+      '@types/sql.js': 1.4.11
       react: 18.3.1
+      sql.js: 1.14.2
 
   dunder-proto@1.0.1:
     dependencies:
@@ -5870,6 +5905,8 @@ snapshots:
       source-map: 0.6.1
 
   source-map@0.6.1: {}
+
+  sql.js@1.14.2: {}
 
   stackback@0.0.2: {}
 

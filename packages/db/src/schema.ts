@@ -48,6 +48,8 @@ export const profile = sqliteTable('profile', {
   streakFrozenUntil: integer('streak_frozen_until'),
   penaltyZoneSince: integer('penalty_zone_since'),
   onboardingDone: integer('onboarding_done', { mode: 'boolean' }).notNull().default(false),
+  /** 'YYYY-MM-DD', the last local day `dayClose` finished processing (spec 5.4's "process all missed days in order"). */
+  lastDayCloseDate: text('last_day_close_date'),
 });
 
 /** JSON column groups, validated by Zod schemas in `@ascendant/app`'s settings module. */
