@@ -1,0 +1,23 @@
+/*
+ * Complex component styles that don't fit cleanly as Tailwind utility strings
+ * (spec section 2): the dial, faders, HP segments, and other hand-drawn SVG/CSS
+ * pieces. Simple primitives (buttons, badges, cards) are styled with Tailwind
+ * utility classes directly in their components instead of growing this file.
+ *
+ * Class prefix: `a-` (Ascendant) to avoid collisions with Tailwind utilities.
+ */
+
+.a-scrim {
+  background: var(--scrim);
+}
+
+/* Sidebar / rows that need a full-bleed child inside a rounded card (spec 8.3:
+ * "Rows inside a rounded card stay full-bleed and the card clips them"). */
+.a-card-clip {
+  overflow: hidden;
+}
+
+/* Sidebar nav row divider uses the soft rule between list rows. */
+.a-row + .a-row {
+  border-top: 1px solid var(--rule-soft);
+}

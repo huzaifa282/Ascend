@@ -1,0 +1,49 @@
+{
+  "name": "ascendant",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Ascendant: an open-source, local-first life RPG and daily companion.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @ascendant/desktop tauri dev",
+    "dev:web": "pnpm --filter @ascendant/desktop dev",
+    "build": "pnpm --filter @ascendant/desktop tauri build",
+    "tauri": "pnpm --filter @ascendant/desktop tauri",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "gen:ruleset": "tsx packages/engine/scripts/gen-ruleset-md.ts",
+    "seed": "tsx packages/seed/src/cli.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.5",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-react": "^7.37.3",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "pnpm@10.4.1",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

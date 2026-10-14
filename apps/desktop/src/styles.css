@@ -1,0 +1,7 @@
+@import '@ascendant/ui/tokens.css';
+@import '@ascendant/ui/base.css';
+@import '@ascendant/ui/components.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

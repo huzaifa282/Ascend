@@ -1,0 +1,40 @@
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+*.local
+
+# Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/Cargo.lock.bak
+apps/desktop/src-tauri/gen/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Generated DB files (dev)
+*.sqlite
+*.sqlite3
+*.db

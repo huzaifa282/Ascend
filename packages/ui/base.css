@@ -1,0 +1,109 @@
+/*
+ * Base styles — spec section 8.2 (type) and 8.5 (accessibility).
+ * Imported once per window entry, after tokens.css and before Tailwind utilities.
+ */
+
+@font-face {
+  font-family: 'Archivo';
+  src: url('./fonts/archivo-variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  src: url('./fonts/martian-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  src: url('./fonts/martian-mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  src: url('./fonts/martian-mono-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-stretch: 112%;
+  font-size: 15px;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Numerals and headings use the wider stretch (spec 8.2). */
+.a-numeral,
+.a-heading {
+  font-stretch: 125%;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Widget / strip / command windows are transparent + undecorated (spec 7.1);
+ * the body itself must not paint an opaque background or the window shows a block. */
+body.a-transparent-body {
+  background: transparent;
+}
+body.a-transparent-body html {
+  background: transparent;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* Focus ring — spec 8.5: 2px solid --text, 2px offset, on :focus-visible only. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Scrollbars stay unobtrusive and in-theme. */
+* {
+  scrollbar-color: var(--rule) transparent;
+  scrollbar-width: thin;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}

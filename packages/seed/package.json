@@ -1,0 +1,22 @@
+{
+  "name": "@ascendant/seed",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ascendant/app": "workspace:*",
+    "@ascendant/db": "workspace:*",
+    "@ascendant/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.8"
+  }
+}

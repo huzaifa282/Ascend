@@ -1,0 +1,113 @@
+/*
+ * Ascendant design tokens — spec section 8. Use these verbatim.
+ * Do not invent colours, radii or fonts. No raw hex in components.
+ */
+
+/* ---------- 8.1 Colour --------------------------------------------------- */
+/* Dark theme only. The accent is swappable at runtime with data-theme on <html>. */
+:root,
+[data-theme='azure'] {
+  --bg: #0b0d12; /* app background (cool ink) */
+  --surface: #151a23; /* tracks, inputs, empty segments, hover fills */
+  --rule: #262c38; /* 1px hairlines between regions, control borders */
+  --rule-soft: #1a1f29; /* row separators inside lists */
+  --text: #e8ecf2; /* primary text, filled bars (16:1 on bg) */
+  --text-muted: #8e98a8; /* labels, metadata (6.7:1 on bg, 6.0:1 on surface) */
+  --accent: #3d7bff; /* XP, today's gains, primary actions only (5.1:1 on bg, 4.55:1 on surface) */
+  --on-accent: #0b0d12; /* text/icons on accent fills */
+  --danger: #ff7a7a; /* overdue, HP loss, Penalty Zone; always with a word */
+  --danger-wash: #2a1519; /* late rows, penalty banner background */
+  --ok: #7bd88f; /* connected, on track, early/on-time, breaks; always with a word */
+}
+[data-theme='ember'] {
+  --accent: #ff5a1f;
+}
+[data-theme='acid'] {
+  --accent: #d4ff3a;
+}
+[data-theme='mono'] {
+  --accent: #e8ecf2;
+}
+
+/* Rules: one accent, used sparingly (XP, today's gains, the primary button, the running
+ * timer). If everything is blue, nothing is. Danger and ok always come with a word
+ * (LATE, FAILED, PENALTY ZONE, CONNECTED). No gradients, glows or glassmorphism. Shadows
+ * only on floating windows and modals. */
+:root {
+  --scrim: rgba(5, 7, 10, 0.62); /* the modal scrim colour, see .a-scrim */
+}
+
+/* ---------- 8.2 Type ------------------------------------------------------ */
+:root {
+  --font-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Martian Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* ---------- 8.3 Spacing, radius, elevation, sizes ------------------------ */
+:root {
+  --space-half: 4px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 48px;
+  --space-6: 64px;
+  --space-7: 96px;
+
+  --radius-xs: 3px; /* HP segments, small bars, pips */
+  --radius-sm: 6px; /* key caps, type tags, checkbox boxes */
+  --radius-md: 10px; /* buttons, inputs, icon buttons, rank badges, segmented controls */
+  --radius-lg: 16px; /* cards, panels, windows, command bar, notifications, widget */
+  --radius-xl: 28px; /* phone frame, mobile home-screen widgets */
+  --radius-pill: 999px; /* badges, toggles, progress bars, compact strip, round buttons (50%) */
+
+  --shadow-window: 0 24px 64px #000000b3, 0 0 0 1px #262c38; /* floating windows and modals only */
+  --touch-min: 44px;
+}
+
+/* ---------- 8.4 Motion ---------------------------------------------------- */
+:root {
+  --ease-out: ease-out;
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 250ms;
+  --motion-count-up: 600ms;
+  --motion-level-roll: 900ms;
+}
+
+/* prefers-reduced-motion and the in-app toggle collapse every animation to an instant
+ * state change. Components should read --motion-* and the data attribute below rather
+ * than hard-coding durations, so this single rule can neutralise them. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+    --motion-count-up: 0ms;
+    --motion-level-roll: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-reduced-motion='on'] {
+  --motion-fast: 0ms;
+  --motion-base: 0ms;
+  --motion-slow: 0ms;
+  --motion-count-up: 0ms;
+  --motion-level-roll: 0ms;
+}
+html[data-reduced-motion='on'] *,
+html[data-reduced-motion='on'] *::before,
+html[data-reduced-motion='on'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
