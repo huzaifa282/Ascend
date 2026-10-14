@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Icon, clsx } from '@ascendant/ui';
 import type { IconKey } from '@ascendant/ui';
-import { useProfileStore } from '../stores/useProfileStore';
+import { useProfile } from '../hooks/useProfile';
 
 interface NavItem {
   to: string;
@@ -29,7 +29,8 @@ const NAV_LEVELING_OFF: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const levelingEnabled = useProfileStore((s) => s.levelingEnabled);
+  const { data: profile } = useProfile();
+  const levelingEnabled = profile?.levelingEnabled ?? true;
   const items = levelingEnabled ? NAV_LEVELING_ON : NAV_LEVELING_OFF;
 
   return (

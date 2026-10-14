@@ -120,6 +120,9 @@ importers:
         specifier: ^5.0.2
         version: 5.0.15(@types/react@18.3.31)(react@18.3.1)
     devDependencies:
+      '@tailwindcss/container-queries':
+        specifier: ^0.1.1
+        version: 0.1.1(tailwindcss@3.4.19(tsx@4.23.15))
       '@tauri-apps/cli':
         specifier: ^2.1.0
         version: 2.12.2
@@ -1399,6 +1402,11 @@ packages:
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
+
+  '@tailwindcss/container-queries@0.1.1':
+    resolution: {integrity: sha512-p18dswChx6WnTSaJCSGx6lTmrGzNNvm2FtXmiO6AuA1V4U5REyoqwmT6kgAsIMdjo07QdAfYXHJ4hnMtfHzWgA==}
+    peerDependencies:
+      tailwindcss: '>=3.2.0'
 
   '@tanstack/query-core@5.104.2':
     resolution: {integrity: sha512-/qbsxJK5c3Ve1aFIULWYNcT2jeRUAiD4HME6Eu2ZdpofHoVgAjpkQhLg5xHuOoBkTPQUJLfP7zOxy0qsBcqROA==}
@@ -4050,6 +4058,10 @@ snapshots:
     optional: true
 
   '@rtsao/scc@1.1.0': {}
+
+  '@tailwindcss/container-queries@0.1.1(tailwindcss@3.4.19(tsx@4.23.15))':
+    dependencies:
+      tailwindcss: 3.4.19(tsx@4.23.15)
 
   '@tanstack/query-core@5.104.2': {}
 

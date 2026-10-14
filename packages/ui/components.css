@@ -21,3 +21,31 @@
 .a-row + .a-row {
   border-top: 1px solid var(--rule-soft);
 }
+
+/* Waveform bars while recording (spec 9.2: "animating 35-100% height with stagger"). */
+@keyframes a-wave {
+  0%,
+  100% {
+    height: 35%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+.a-wave-bar {
+  /* prefers-reduced-motion / data-reduced-motion="on" override this globally (tokens.css). */
+  animation: a-wave 900ms ease-in-out infinite;
+}
+
+/* New System message flashes accent background for 600ms (spec 9.2). */
+@keyframes a-flash-accent {
+  0% {
+    background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.a-flash-accent {
+  animation: a-flash-accent 600ms ease-out;
+}

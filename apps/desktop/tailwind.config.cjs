@@ -12,4 +12,7 @@ module.exports = {
     '../../packages/ui/src/**/*.{ts,tsx}',
     '../../packages/app/src/**/*.{ts,tsx}',
   ],
+  // PlayerBar (spec 9.2) hides elements by its own box width, not the
+  // viewport's — e.g. it's narrower inside the widget than in the main window.
+  plugins: [require('@tailwindcss/container-queries')],
 };
