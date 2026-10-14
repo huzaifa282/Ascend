@@ -1,8 +1,9 @@
 import { createDb, type Db } from '@ascendant/db';
 import { createTauriSqlExecutor } from './tauri';
+import { createTauriKeychain } from './keychain.tauri';
 import type { Platform } from './types';
 
-export type { Platform } from './types';
+export type { Platform, Keychain } from './types';
 export { createTauriSqlExecutor } from './tauri';
 
 function isTauri(): boolean {
@@ -20,9 +21,22 @@ let platformPromise: Promise<Platform> | null = null;
 export function getPlatform(): Promise<Platform> {
   if (!platformPromise) {
     platformPromise = isTauri()
-      ? Promise.resolve<Platform>({ sql: createTauriSqlExecutor(), kind: 'tauri' })
+      ? import('./http.tauri').then(
+          ({ tauriFetch }) =>
+            ({
+              sql: createTauriSqlExecutor(),
+              keychain: createTauriKeychain(),
+              fetch: tauriFetch as unknown as typeof fetch,
+              kind: 'tauri',
+            }) satisfies Platform,
+        )
       : import('./browser').then(({ createBrowserSqlExecutor }) =>
-          createBrowserSqlExecutor().then((sql) => ({ sql, kind: 'browser' }) satisfies Platform),
+          import('./keychain.browser').then(({ createBrowserKeychain }) =>
+            createBrowserSqlExecutor().then(
+              (sql) =>
+                ({ sql, keychain: createBrowserKeychain(), fetch, kind: 'browser' }) satisfies Platform,
+            ),
+          ),
         );
   }
   return platformPromise;

@@ -4,3 +4,7 @@ export { useOpenTasks, useCompleteTask } from './useTasks';
 export { useStats } from './useStats';
 export { useActiveDailies, useTodaysDailyCompletions, useCompleteDaily } from './useDailies';
 export { useDailyXpSeries, useRecentSystemMessages, useTitles } from './useHistory';
+export { useModelSettings } from './useModelSettings';
+export { useCommandBar } from './useCommandBar';
+export type { CommandBarState } from './useCommandBar';
+export { useAskSystem, useChatMessages } from './useAskSystem';

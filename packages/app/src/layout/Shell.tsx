@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { CommandBarSlot } from '../components/CommandBarSlot';
+import { CommandBarContainer } from '../components/CommandBarContainer';
 import { PlayerBarSlot } from '../components/PlayerBarSlot';
 
 const NO_PLAYER_BAR_ROUTES = ['/today', '/music', '/focus'];
@@ -28,8 +28,8 @@ export function Shell() {
     <div className="h-screen w-screen bg-bg text-text flex">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-[76px] flex-none flex items-center px-6 border-b border-rule">
-          <CommandBarSlot />
+        <header className="min-h-[76px] flex-none flex items-center px-6 py-3 border-b border-rule">
+          <CommandBarContainer />
         </header>
         <main className="flex-1 overflow-y-auto px-6 py-6">
           <Outlet />

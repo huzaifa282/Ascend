@@ -87,6 +87,11 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
+      // TypeScript's own checker already catches undefined names (including
+      // ambient lib/global types like RequestInit), and understands type vs.
+      // value positions correctly; plain no-undef doesn't and can misfire on
+      // type-only identifiers. Standard typescript-eslint recommendation.
+      'no-undef': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
     },

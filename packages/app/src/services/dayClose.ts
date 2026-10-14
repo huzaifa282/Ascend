@@ -16,7 +16,7 @@ import {
   localMonthString,
 } from '../lib/localTime';
 import type { ServiceContext } from './context';
-import { buildHpEvent } from './ledger';
+import { buildHpEvent, buildSystemMessage } from './ledger';
 
 export interface DayCloseDaySummary {
   date: string;
@@ -168,6 +168,7 @@ async function closeOneDay(
           .update(schema.profile)
           .set({ rank: activeTrial.toRank, updatedAt: now })
           .where(eq(schema.profile.id, profile.id)),
+        buildSystemMessage(ctx.db, { at: now, kind: 'gain', templateKey: 'rank_up', params: { rank: activeTrial.toRank } }),
       );
     }
   }

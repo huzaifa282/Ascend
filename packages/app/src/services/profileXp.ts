@@ -1,7 +1,7 @@
 import { newId, schema, type Db, type ProfileRow } from '@ascendant/db';
 import { applyXpGain, rankForLevel, trialUnlockLevel, type Ruleset } from '@ascendant/engine';
 import { eq } from 'drizzle-orm';
-import { buildXpEvent } from './ledger';
+import { buildSystemMessage, buildXpEvent } from './ledger';
 import type { ServiceContext } from './context';
 
 export interface ApplyXpResult {
@@ -45,6 +45,10 @@ export async function applyXpToProfile(
       .where(eq(schema.profile.id, profile.id)),
   ];
 
+  if (leveled.levelsGained > 0) {
+    writes.push(buildSystemMessage(db, { at, kind: 'gain', templateKey: 'level_up', params: { level: leveled.level } }));
+  }
+
   // Spec 5.3: "Reaching the first level of the next band unlocks a 7-day
   // rank trial." Only unlock once per band crossing.
   let trialUnlocked = false;
@@ -54,17 +58,19 @@ export async function applyXpToProfile(
       const existing = await ctx.repos.rankTrials.getActive();
       if (!existing) {
         trialUnlocked = true;
+        const toRank = rankForLevel(unlockLevel, ruleset);
         writes.push(
           db.insert(schema.rankTrials).values({
             id: newId(),
             createdAt: at,
             updatedAt: at,
             fromRank: profile.rank,
-            toRank: rankForLevel(unlockLevel, ruleset),
+            toRank,
             startedAt: at,
             days: [],
             status: 'active',
           }),
+          buildSystemMessage(db, { at, kind: 'info', templateKey: 'rank_trial_unlocked', params: { rank: toRank } }),
         );
       }
     }

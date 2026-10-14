@@ -5,6 +5,7 @@ import { Status } from '../screens/Status';
 import { Quests } from '../screens/Quests';
 import { History } from '../screens/History';
 import { Settings } from '../screens/Settings';
+import { StatusSystem } from '../screens/StatusSystem';
 import { Placeholder } from '../screens/Placeholder';
 import { DevComponents } from '../screens/DevComponents';
 
@@ -19,7 +20,7 @@ export function AppRouter() {
           <Route path="/status" element={<Status />} />
           <Route path="/status/stat/:code" element={<Placeholder title="Stat detail" phase={7} />} />
           <Route path="/status/skills" element={<Placeholder title="Skills" phase={7} />} />
-          <Route path="/status/system" element={<Placeholder title="The System" phase={7} />} />
+          <Route path="/status/system" element={<StatusSystem />} />
           <Route path="/status/report" element={<Placeholder title="Weekly report" phase={7} />} />
           <Route path="/quests" element={<Quests />} />
           <Route path="/quests/:id" element={<Placeholder title="Quest" phase={3} />} />

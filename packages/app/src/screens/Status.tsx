@@ -4,6 +4,7 @@ import { xpNeeded, nextRank, trialUnlockLevel, DEFAULT_RULESET, STAT_CODES } fro
 import { useProfile } from '../hooks/useProfile';
 import { useStats } from '../hooks/useStats';
 import { useDailyXpSeries, useRecentSystemMessages } from '../hooks/useHistory';
+import { renderMessage } from '../system/messages';
 
 /** Status — spec 10.3. */
 export function Status() {
@@ -70,7 +71,7 @@ export function Status() {
                 key={m.id}
                 kind={m.kind}
                 time={new Date(m.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                text={m.templateKey}
+                text={renderMessage(m.templateKey, profile.tone, m.params as Record<string, string | number>)}
               />
             ))
           ) : (

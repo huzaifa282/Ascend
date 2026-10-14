@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Toggle, clsx } from '@ascendant/ui';
 import type { AccentTheme } from '../stores/useUiStore';
 import { useUiStore } from '../stores/useUiStore';
+import { ModelPanel } from './settings/ModelPanel';
 
 const SECTIONS = [
   { id: 'model', label: 'Model' },
@@ -50,7 +51,9 @@ export function Settings() {
       </nav>
 
       <div className="flex-1">
-        {section === 'appearance' ? (
+        {section === 'model' ? (
+          <ModelPanel />
+        ) : section === 'appearance' ? (
           <div className="flex flex-col gap-6">
             <h1 className="font-display text-[22px] font-bold a-heading">Appearance</h1>
             <div className="flex flex-col gap-2">

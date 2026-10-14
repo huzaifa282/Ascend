@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm';
 import type { ServiceContext } from './context';
 import { applyXpToProfile } from './profileXp';
 import { applyHpDelta } from './hp';
+import { buildSystemMessage } from './ledger';
 
 export interface CompleteTaskResult {
   tier: string;
@@ -59,11 +60,12 @@ export async function completeTask(ctx: ServiceContext, taskId: string, now: num
   ];
 
   if (completion.tier === 'failed') {
-    const hp = await applyHpDelta(ctx, profile, -failedTaskHpLossMagnitude(difficulty, ctx.ruleset), now, 'failed_task', {
+    const hpLoss = failedTaskHpLossMagnitude(difficulty, ctx.ruleset);
+    const hp = await applyHpDelta(ctx, profile, -hpLoss, now, 'failed_task', {
       refType: 'task',
       refId: taskId,
     });
-    writes.push(...hp.writes);
+    writes.push(...hp.writes, buildSystemMessage(ctx.db, { at: now, kind: 'danger', templateKey: 'deadline_missed', params: { hp: hpLoss } }));
     await runAtomic(ctx.sql, writes as Parameters<typeof runAtomic>[1]);
     return { tier: completion.tier, xp: 0, levelsGained: 0, newLevel: profile.level };
   }
@@ -72,7 +74,10 @@ export async function completeTask(ctx: ServiceContext, taskId: string, now: num
     refType: 'task',
     refId: taskId,
   });
-  writes.push(...xpApplied.writes);
+  writes.push(
+    ...xpApplied.writes,
+    buildSystemMessage(ctx.db, { at: now, kind: 'ok', templateKey: 'quest_done', params: { title: task.title, xp: completion.xp } }),
+  );
 
   const statWeights = (task.statWeights as Partial<Record<StatCode, number>>) ?? { DIS: 1 };
   for (const [code, weight] of Object.entries(statWeights) as [StatCode, number][]) {

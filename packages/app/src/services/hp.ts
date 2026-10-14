@@ -4,7 +4,7 @@ import { applyHpLossWithDailyCap, clampHp } from '@ascendant/engine';
 import { eq } from 'drizzle-orm';
 import { localDayBounds } from '../lib/localTime';
 import type { ServiceContext } from './context';
-import { buildHpEvent } from './ledger';
+import { buildHpEvent, buildSystemMessage } from './ledger';
 
 export interface ApplyHpResult {
   writes: unknown[];
@@ -53,6 +53,9 @@ export async function applyHpDelta(
       })
       .where(eq(schema.profile.id, profile.id)),
   );
+  if (enteredPenaltyZone) {
+    writes.push(buildSystemMessage(ctx.db, { at: now, kind: 'danger', templateKey: 'penalty_zone_entered' }));
+  }
 
   return { writes, newHp, enteredPenaltyZone };
 }

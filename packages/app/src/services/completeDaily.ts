@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { localDateString } from '../lib/localTime';
 import type { ServiceContext } from './context';
 import { applyXpToProfile } from './profileXp';
+import { buildSystemMessage } from './ledger';
 
 export interface CompleteDailyResult {
   alreadyDone: boolean;
@@ -46,7 +47,10 @@ export async function completeDaily(
     refType: 'daily',
     refId: dailyId,
   });
-  writes.push(...xpApplied.writes);
+  writes.push(
+    ...xpApplied.writes,
+    buildSystemMessage(ctx.db, { at: now, kind: 'ok', templateKey: 'quest_done', params: { title: daily.title, xp: daily.xp } }),
+  );
 
   const statWeights = (daily.statWeights as Partial<Record<StatCode, number>>) ?? {};
   for (const [code, weight] of Object.entries(statWeights) as [StatCode, number][]) {

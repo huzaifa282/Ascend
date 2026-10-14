@@ -9,3 +9,13 @@ export { useShield, type UseShieldResult } from './useShield';
 export { recalcFromHistory } from './recalcFromHistory';
 export { applyHpDelta, type ApplyHpResult } from './hp';
 export { applyXpToProfile, type ApplyXpResult } from './profileXp';
+export {
+  createProviderForSettings,
+  buildInterpretContext,
+  submitEntry,
+  acceptEntryItem,
+  removeEntryItem,
+  discardEntry,
+  type SubmitEntryResult,
+} from './llm';
+export { buildAskSystemSummary, askSystem } from './askSystem';
