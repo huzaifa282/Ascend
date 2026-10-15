@@ -28,7 +28,10 @@ serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 include_dir = "0.7"
 # Spec 12.1: API keys only in the OS keychain, never in SQLite/files/logs.
-keyring = "3"
+# keyring 3.x ships no default backend — without an explicit feature it silently
+# falls back to a non-persistent mock store, so keys would never read back after
+# being set. Windows-only for now, matching this build's desktop/Windows scope.
+keyring = { version = "3", features = ["windows-native"] }
 # Spec 11.1: music folder tag/cover-art scanning.
 lofty = "0.21"
 walkdir = "2"
