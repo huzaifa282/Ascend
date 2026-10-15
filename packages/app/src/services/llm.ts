@@ -82,15 +82,20 @@ export interface SubmitEntryResult {
   error?: string;
 }
 
-/** Spec 6.1 steps 1-4. Offline/no provider: the entry stays `queued` (the manual quick-pick handles it instead). */
+/**
+ * Spec 6.1 steps 1-4. Offline/no provider: the entry stays `queued` (the
+ * manual quick-pick handles it instead). `providerOverride` exists only for
+ * tests — real callers resolve the provider from Settings/the keychain.
+ */
 export async function submitEntry(
   ctx: ServiceContext,
   rawText: string,
   source: 'typed' | 'voice' | 'widget' | 'manual',
   now: number,
+  providerOverride?: Provider | null,
 ): Promise<SubmitEntryResult> {
   const entryId = newId();
-  const provider = await createProviderForSettings(ctx);
+  const provider = providerOverride !== undefined ? providerOverride : await createProviderForSettings(ctx);
 
   if (!provider) {
     await ctx.repos.entries.create({
