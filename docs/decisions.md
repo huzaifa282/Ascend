@@ -405,3 +405,18 @@ This closes out the phases 0-7 scope agreed at the start of this build.
 Remaining known gaps across the whole session are catalogued here in
 docs/decisions.md rather than silently dropped; see the "Deferred to a
 later pass" and similar notes throughout this file.
+
+## 2026-10-15 — Settings sections still unwired: Voice, Stats, Ruleset tuning
+
+Three of spec 10.16's twelve Settings sections still render the generic
+"Built out further in a later phase" placeholder: **Voice** (consistent
+with the standing decision at the start of this build to skip on-device
+voice entirely — see this file's first entry), **Stats** (preset,
+rename, reorder, hide — a settings-only refinement over the nine fixed
+stat codes, not blocking any other feature), and **Ruleset tuning**
+(every constant from spec section 5 with its default and Reset all — a
+genuinely large UI, one input per ruleset constant across ~10 categories,
+lower priority than the screens and services built this session). All
+three are straightforward CRUD against existing schema/engine surface
+(`MusicSettings`-style patterns apply directly); none require new
+services or schema changes.
