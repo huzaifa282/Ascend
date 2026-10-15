@@ -48,7 +48,10 @@ export function WidgetContent() {
       className="h-screen w-screen flex flex-col bg-bg border border-rule rounded-lg overflow-hidden text-text"
       style={{ opacity: (widgetSettings?.opacity ?? 100) / 100 }}
     >
-      <div data-tauri-drag-region className="h-10 flex items-center justify-between px-3 flex-none cursor-move">
+      <div
+        data-tauri-drag-region="deep"
+        className="h-10 flex items-center justify-between px-3 flex-none cursor-move"
+      >
         <span className="font-mono text-[11px] uppercase tracking-[.12em] text-text-muted">ASCENDANT</span>
         <div className="flex items-center gap-1">
           <IconButton icon="ext" aria-label="Open" size={16} onClick={() => openMain('/today')} />
@@ -63,13 +66,14 @@ export function WidgetContent() {
             }}
           />
           <IconButton icon="collapse" aria-label="Collapse" size={16} onClick={() => void invoke('toggle_companion_size')} />
+          <IconButton icon="x" aria-label="Close" size={16} onClick={() => void getCurrentWindow().hide()} />
         </div>
       </div>
 
       <div className="flex flex-col gap-4 px-4 pb-4 overflow-y-auto flex-1">
         {profile &&
           (levelingEnabled ? (
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col gap-2">
               <LevelChip
                 level={profile.level}
                 rank={profile.rank}

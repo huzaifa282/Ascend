@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Dial, IconButton, LevelChip, PlayButton } from '@ascendant/ui';
 import { xpNeeded, DEFAULT_RULESET } from '@ascendant/engine';
 import { useMusicPlayerRemote, useProfile, useTimer } from '../hooks';
@@ -23,7 +24,7 @@ export function StripContent() {
 
   return (
     <div
-      data-tauri-drag-region
+      data-tauri-drag-region="deep"
       className="h-screen w-screen flex items-center gap-3 px-3 bg-bg border border-rule rounded-pill overflow-hidden text-text cursor-move"
     >
       {profile && (
@@ -60,6 +61,7 @@ export function StripContent() {
         <PlayButton playing={track.playing} onClick={playPause} aria-label={track.playing ? 'Pause' : 'Play'} size="small" />
         <IconButton icon="next" aria-label="Next" onClick={next} />
         <IconButton icon="expand" aria-label="Expand" onClick={() => void invoke('toggle_companion_size')} />
+        <IconButton icon="x" aria-label="Close" onClick={() => void getCurrentWindow().hide()} />
       </div>
     </div>
   );

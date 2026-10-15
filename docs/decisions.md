@@ -449,3 +449,38 @@ key, which is a bad fallback on its own regardless of the root-cause fix.
 
 The user's existing `.window-state.json` needs no manual edit — the fix
 makes its stale `command` entry permanently unread.
+
+## 2026-10-15 — Fix: widget undraggable/unclosable, plus a level-row overflow
+
+Next report after the command-window fix: the widget itself couldn't be
+moved or closed, and there were unspecified "UI issues." Found three
+confirmed bugs by reading Tauri's own source rather than guessing (no
+tool here can attach to or screenshot a native desktop window):
+
+**Undraggable**: `data-tauri-drag-region` (bare, no value) only arms a
+*direct* click on that exact element — confirmed in
+`tauri-2.12.4/src/window/scripts/drag.js`'s `isDragRegion()`:
+`if (attr === '' || attr === 'true') return el === composedPath[0]`.
+The widget's title row wraps a text span and a button group, so almost
+every click lands on a descendant, not the bare div itself — only literal
+padding pixels counted. Same bug in the strip (nearly zero bare space,
+packed with content) and in the command window's drag strip added in the
+previous fix. Fixed by switching all three to
+`data-tauri-drag-region="deep"`, which arms any non-interactive
+descendant (buttons stay excluded regardless, per the same file's
+`isClickableElement` check running before the attr check).
+
+**Unclosable**: the widget never had a close affordance — only
+open/pin/collapse, and "collapse" just swaps to the strip, which also had
+no close. Added an `IconButton` (`"x"`, `getCurrentWindow().hide()`) to
+both the widget's title row and the strip's control row, matching the one
+the command window already got.
+
+**Layout overflow (likely "the UI issue")**: the widget's level row put
+`LevelChip` (fixed ~236px: 48px ring + a non-shrinking `w-40` XP bar) and
+`HpSegments` (~200px) side by side in a 350px-wide window (~318px usable
+after padding) — about 440px of content in 318px, clipped by the
+widget's own `overflow-hidden`. `LevelChip` was built for Today's wide
+header, not a narrow companion column. Fixed by stacking them vertically
+instead — `LevelChip` alone fits comfortably at this width, no new
+component needed.

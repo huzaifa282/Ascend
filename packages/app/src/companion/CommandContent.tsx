@@ -24,7 +24,7 @@ export function CommandContent() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-bg border border-rule rounded-lg overflow-hidden text-text">
-      <div data-tauri-drag-region className="h-6 flex items-center justify-end px-2 flex-none cursor-move">
+      <div data-tauri-drag-region="deep" className="h-6 flex items-center justify-end px-2 flex-none cursor-move">
         <IconButton
           icon="x"
           aria-label="Close"
