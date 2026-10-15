@@ -29,3 +29,9 @@ export { buildAskSystemSummary, askSystem } from './askSystem';
 export { pickMusicFolder, scanMusicFolder, type ScannedTrack } from './music';
 export { getPenaltyZoneStatus, checkPenaltyZoneRecovery, type PenaltyZoneStatus, type CheckRecoveryResult } from './penaltyZone';
 export { buildWeeklyReport, type WeeklyReport, type WeeklyReportStatGain } from './weeklyReport';
+export {
+  bootstrapProfile,
+  applyStatBaselines,
+  setProfileNameToneAndFinish,
+  createSuggestedDailies,
+} from './onboarding';

@@ -1,10 +1,11 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { CommandBarContainer } from '../components/CommandBarContainer';
 import { PlayerBarSlot } from '../components/PlayerBarSlot';
 import { MomentsOverlay } from '../components/MomentsOverlay';
 import { useDayCloseOnMount } from '../hooks/useDayCloseOnMount';
 import { usePenaltyZoneStatus } from '../hooks/usePenaltyZone';
+import { useProfile } from '../hooks/useProfile';
 import { clsx } from '@ascendant/ui';
 
 const NO_PLAYER_BAR_ROUTES = ['/today', '/music', '/focus'];
@@ -20,8 +21,16 @@ export function Shell() {
   const showPlayerBar = !NO_PLAYER_BAR_ROUTES.some((r) => location.pathname.startsWith(r));
   const { data: penaltyZone } = usePenaltyZoneStatus();
   const inPenaltyZone = Boolean(penaltyZone?.active);
+  const { data: profile, isLoading: profileLoading } = useProfile();
 
   useDayCloseOnMount();
+
+  // Spec 10.1: a brand-new install has no profile row at all — send it to
+  // Awakening instead of rendering every screen's "if (!profile) return
+  // null" blank state.
+  if (!profileLoading && profile === null) {
+    return <Navigate to="/onboarding/1" replace />;
+  }
 
   if (isFocusMode) {
     // Full window, no sidebar or command bar (spec 10.15).

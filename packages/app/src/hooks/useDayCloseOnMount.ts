@@ -16,6 +16,8 @@ export function useDayCloseOnMount(): void {
 
     void (async () => {
       const ctx = await createServiceContext();
+      const profile = await ctx.repos.profile.get();
+      if (!profile) return; // nothing to close before onboarding creates a profile row.
       const summaries = await dayClose(ctx, Date.now());
       if (summaries.length === 0) return;
 

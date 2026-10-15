@@ -21,3 +21,4 @@ export { useStatDetail } from './useStatDetail';
 export type { StatDetail } from './useStatDetail';
 export { useSkillsList, useOpenSkillSuggestions, useApproveSkillSuggestion, useDismissSkillSuggestion } from './useSkills';
 export { useWeeklyReport } from './useWeeklyReport';
+export { useOnboarding } from './useOnboarding';

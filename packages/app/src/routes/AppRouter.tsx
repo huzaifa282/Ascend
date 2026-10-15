@@ -13,6 +13,7 @@ import { Music } from '../screens/Music';
 import { StatDetail } from '../screens/StatDetail';
 import { Skills } from '../screens/Skills';
 import { WeeklyReport } from '../screens/WeeklyReport';
+import { Onboarding } from '../screens/Onboarding';
 import { Placeholder } from '../screens/Placeholder';
 import { DevComponents } from '../screens/DevComponents';
 
@@ -39,6 +40,7 @@ export function AppRouter() {
     <BrowserRouter>
       <NavigateListener />
       <Routes>
+        <Route path="/onboarding/:step" element={<Onboarding />} />
         <Route element={<Shell />}>
           <Route index element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Today />} />
@@ -54,7 +56,6 @@ export function AppRouter() {
           <Route path="/settings" element={<Navigate to="/settings/model" replace />} />
           <Route path="/settings/:section" element={<Settings />} />
           <Route path="/focus" element={<Focus />} />
-          <Route path="/onboarding/:step" element={<Placeholder title="Awakening" phase={7} />} />
           <Route path="/dev/components" element={<DevComponents />} />
           <Route path="*" element={<Navigate to="/today" replace />} />
         </Route>

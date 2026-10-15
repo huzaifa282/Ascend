@@ -308,3 +308,32 @@ a real `vite build` that none of them land in `main`'s eager chunk.
 `dialog:allow-save` and `fs:allow-write-file` permissions (scope `**`,
 same pragmatic breadth as the music folder's read permissions) were added
 to `capabilities/default.json` for this.
+
+## 2026-10-15 — Phase 7 (part 4): onboarding (a real correctness gap, not just a missing screen)
+
+Before this pass, the **only** code that ever created a `profile`,
+`settings` or `stats` row was the seed generator — a brand-new real install
+had none of them, and every screen's `if (!profile) return null` guard
+would just show a blank app forever. Onboarding (spec 10.1) fixes this, not
+just adds a wizard:
+
+- `bootstrapProfile` (in `services/onboarding.ts`) creates all three rows
+  the moment `/onboarding/1` mounts — idempotently, so revisiting or
+  refreshing never double-creates. Doing this *early* rather than at the
+  end means step 4 (connect a model) can reuse the ordinary
+  `Settings > Model` panel (`ModelPanel`) completely unmodified: it needs a
+  real `settings` row to persist into, which now exists.
+- `Shell` redirects to `/onboarding/1` whenever `useProfile()` resolves to
+  `null` (confirmed no row, not just still loading). `useDayCloseOnMount`
+  now also checks for a profile before calling `dayClose` (which throws
+  without one), since its effect runs unconditionally in `Shell` before
+  that redirect check.
+- The questionnaire's answer -> starting-stat-XP mapping and the 5
+  suggested-daily templates live in `onboarding/baselines.ts`, matching
+  the plan's intended file. `STAT_NAMES` is duplicated here rather than
+  shared with `packages/seed`'s copy — `packages/seed` depends on
+  `packages/app`, not the other way around, so sharing would invert the
+  dependency rule for nine short lines.
+- The optional LLM-paragraph-writing step (model connection) reuses
+  `ModelPanel` as-is rather than a bespoke onboarding-only UI, trading a
+  little visual customization for zero duplicated provider/key logic.
