@@ -41,7 +41,9 @@ mod imp {
     use windows::core::{w, PCWSTR};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, FindWindowExW, FindWindowW, SendMessageTimeoutW, SetParent, SMTO_NORMAL,
+        EnumWindows, FindWindowExW, FindWindowW, GetWindowLongPtrW, SendMessageTimeoutW, SetParent,
+        SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SMTO_NORMAL, SWP_FRAMECHANGED, SWP_NOACTIVATE,
+        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CHILD, WS_POPUP,
     };
 
     struct FindState {
@@ -82,16 +84,55 @@ mod imp {
         (!state.worker_w.0.is_null()).then_some(state.worker_w)
     }
 
+    /// `SetParent` alone does not make Windows treat the window as a real
+    /// child for input/hit-testing — a window tao creates undecorated is
+    /// `WS_POPUP`, and reparenting a `WS_POPUP` window without also flipping
+    /// it to `WS_CHILD` is exactly what leaves it visible but unable to
+    /// receive clicks. `SWP_FRAMECHANGED` forces Windows to re-evaluate the
+    /// style change (per `SetWindowLongPtr`'s own documented requirement).
+    fn set_child_style(hwnd: HWND, is_child: bool) {
+        unsafe {
+            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            let new_style = if is_child {
+                (style & !(WS_POPUP.0 as isize)) | (WS_CHILD.0 as isize)
+            } else {
+                (style & !(WS_CHILD.0 as isize)) | (WS_POPUP.0 as isize)
+            };
+            SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+        }
+    }
+
     fn anchor_addr(hwnd_addr: isize) -> bool {
         let hwnd = HWND(hwnd_addr as *mut _);
-        find_worker_w()
-            .and_then(|worker| unsafe { SetParent(hwnd, Some(worker)) }.ok())
-            .is_some()
+        match find_worker_w() {
+            Some(worker) => {
+                set_child_style(hwnd, true);
+                let attached = unsafe { SetParent(hwnd, Some(worker)) }.is_ok();
+                // Re-assert after SetParent too: some Windows builds reset
+                // non-client metrics on reparent, so one FRAMECHANGED before
+                // and after is cheap insurance against the style not sticking.
+                let _ = unsafe {
+                    SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
+                };
+                attached
+            }
+            None => false,
+        }
     }
 
     fn detach_addr(hwnd_addr: isize) {
         let hwnd = HWND(hwnd_addr as *mut _);
         let _ = unsafe { SetParent(hwnd, None) };
+        set_child_style(hwnd, false);
     }
 
     pub fn apply(app: &tauri::AppHandle, watchers: &AnchorWatchers, label: &str, anchor: bool) -> Result<(), String> {
