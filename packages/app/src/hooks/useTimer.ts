@@ -14,10 +14,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
+  checkPenaltyZoneRecovery,
   createServiceContext,
   startTimerSession as startTimerSessionService,
   timerCredit as timerCreditService,
 } from '../services';
+import { useMomentsStore } from '../stores/useMomentsStore';
 
 export type TimerKind = 'focus' | 'break';
 export type TimerPhase = 'idle' | 'running' | 'paused' | 'done' | 'stopped';
@@ -65,19 +67,34 @@ export function useTimer() {
   // matched against when the done event arrives, from either backend.
   const sessionDbIdRef = useRef<string | null>(null);
 
-  const creditSession = useCallback(async (done: TimerDoneEvent) => {
-    const dbId = sessionDbIdRef.current;
-    sessionDbIdRef.current = null;
-    if (!dbId) return;
-    const ctx = await createServiceContext();
-    await timerCreditService(ctx, {
-      timerSessionId: dbId,
-      focusedMinutes: Math.round(done.focused_s / 60),
-      endReason: done.end_reason,
-      startedAt: Date.now() - done.focused_s * 1000,
-      now: Date.now(),
-    });
-  }, []);
+  const pushMoment = useMomentsStore((s) => s.push);
+
+  const creditSession = useCallback(
+    async (done: TimerDoneEvent) => {
+      const dbId = sessionDbIdRef.current;
+      sessionDbIdRef.current = null;
+      if (!dbId) return;
+      const ctx = await createServiceContext();
+      const result = await timerCreditService(ctx, {
+        timerSessionId: dbId,
+        focusedMinutes: Math.round(done.focused_s / 60),
+        endReason: done.end_reason,
+        startedAt: Date.now() - done.focused_s * 1000,
+        now: Date.now(),
+      });
+      if (result.levelsGained && result.levelsGained > 0 && result.newLevel) {
+        pushMoment({
+          kind: 'levelUp',
+          fromLevel: result.newLevel - result.levelsGained,
+          toLevel: result.newLevel,
+          hpRestored: true,
+        });
+      }
+      const recovery = await checkPenaltyZoneRecovery(ctx, Date.now());
+      if (recovery.cleared) pushMoment({ kind: 'penaltyZoneCleared' });
+    },
+    [pushMoment],
+  );
 
   useEffect(() => {
     if (!isTauri()) return;

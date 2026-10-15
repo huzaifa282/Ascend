@@ -1,9 +1,11 @@
 import { useNavigate } from 'react-router-dom';
-import { HpSegments, RankBadge, StatFader, SystemMessage, XpRuler, XpStrip } from '@ascendant/ui';
+import { Countdown, HpSegments, RankBadge, StatFader, SystemMessage, XpRuler, XpStrip } from '@ascendant/ui';
 import { xpNeeded, nextRank, trialUnlockLevel, DEFAULT_RULESET, STAT_CODES } from '@ascendant/engine';
 import { useProfile } from '../hooks/useProfile';
 import { useStats } from '../hooks/useStats';
 import { useDailyXpSeries, useRecentSystemMessages } from '../hooks/useHistory';
+import { usePenaltyZoneStatus } from '../hooks/usePenaltyZone';
+import { useShieldStatus } from '../hooks/useRestShield';
 import { renderMessage } from '../system/messages';
 
 /** Status — spec 10.3. */
@@ -13,6 +15,8 @@ export function Status() {
   const { data: stats } = useStats();
   const { data: dailyXp } = useDailyXpSeries(profile?.timezone ?? '', 61);
   const { data: messages } = useRecentSystemMessages(7);
+  const { data: penaltyZone } = usePenaltyZoneStatus();
+  const { data: shieldStatus } = useShieldStatus();
 
   if (!profile) return null;
 
@@ -23,6 +27,23 @@ export function Status() {
 
   return (
     <div className="max-w-[1000px] mx-auto px-2 py-6 flex flex-col gap-8">
+      {penaltyZone?.active && (
+        <section className="rounded-lg border border-danger bg-danger-wash p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-[16px] font-bold text-danger">Recovery quest</h2>
+            <Countdown remainingMs={penaltyZone.deadlineMs - Date.now()} size={24} />
+          </div>
+          <div className="flex items-center gap-6">
+            <span className="font-mono text-[13px]">
+              {Math.min(penaltyZone.progress.overdueTasksCompleted, penaltyZone.tasksNeeded)} of {penaltyZone.tasksNeeded} overdue tasks cleared
+            </span>
+            <span className="font-mono text-[13px]">
+              {Math.min(penaltyZone.progress.singleFocusSessionMinutes, penaltyZone.focusMinutesNeeded)} of {penaltyZone.focusMinutesNeeded} focus minutes
+            </span>
+          </div>
+        </section>
+      )}
+
       <div className="grid grid-cols-[auto_1fr] gap-8 items-start">
         <div className="flex items-center gap-3">
           <span className="font-display font-extrabold a-numeral text-[120px] leading-none">{profile.level}</span>
@@ -37,7 +58,7 @@ export function Status() {
           )}
           <HpSegments hp={profile.hp} />
           <div className="flex items-center gap-6">
-            <Figure label="Day streak" value={String(profile.streakDays)} />
+            <Figure label="Day streak" value={shieldStatus?.usedToday ? 'FROZEN' : String(profile.streakDays)} />
             <Figure label="XP today" value={`+${todayXp}`} accent />
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { EntryItemRow } from '@ascendant/db';
+import type { AcceptEntryItemResult } from '../services';
 import {
   acceptEntryItem as acceptEntryItemService,
   createServiceContext,
@@ -8,6 +9,7 @@ import {
   removeEntryItem as removeEntryItemService,
   submitEntry as submitEntryService,
 } from '../services';
+import { useMomentsStore } from '../stores/useMomentsStore';
 
 export interface CommandBarState {
   value: string;
@@ -23,14 +25,31 @@ const INITIAL_STATE: CommandBarState = { value: '', status: 'idle', entryId: nul
 export function useCommandBar() {
   const [state, setState] = useState<CommandBarState>(INITIAL_STATE);
   const queryClient = useQueryClient();
+  const pushMoment = useMomentsStore((s) => s.push);
 
   const setValue = useCallback((value: string) => setState((s) => ({ ...s, value })), []);
+
+  const pushLevelUpIfAny = useCallback(
+    (result: AcceptEntryItemResult) => {
+      if (result.levelsGained > 0) {
+        pushMoment({
+          kind: 'levelUp',
+          fromLevel: result.newLevel - result.levelsGained,
+          toLevel: result.newLevel,
+          hpRestored: true,
+        });
+      }
+      if (result.recoveryCleared) pushMoment({ kind: 'penaltyZoneCleared' });
+    },
+    [pushMoment],
+  );
 
   const invalidateAfterAccept = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['tasks'] });
     queryClient.invalidateQueries({ queryKey: ['dailyCompletions'] });
     queryClient.invalidateQueries({ queryKey: ['profile'] });
     queryClient.invalidateQueries({ queryKey: ['stats'] });
+    queryClient.invalidateQueries({ queryKey: ['penaltyZone'] });
   }, [queryClient]);
 
   const submit = useCallback(async () => {
@@ -54,22 +73,24 @@ export function useCommandBar() {
   const acceptItem = useCallback(
     async (itemId: string) => {
       const ctx = await createServiceContext();
-      await acceptEntryItemService(ctx, itemId, Date.now());
+      const result = await acceptEntryItemService(ctx, itemId, Date.now());
+      pushLevelUpIfAny(result);
       invalidateAfterAccept();
       setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== itemId) }));
     },
-    [invalidateAfterAccept],
+    [invalidateAfterAccept, pushLevelUpIfAny],
   );
 
   const acceptAll = useCallback(async () => {
     const ctx = await createServiceContext();
     const now = Date.now();
     for (const item of state.items) {
-      await acceptEntryItemService(ctx, item.id, now);
+      const result = await acceptEntryItemService(ctx, item.id, now);
+      pushLevelUpIfAny(result);
     }
     invalidateAfterAccept();
     setState({ ...INITIAL_STATE });
-  }, [state.items, invalidateAfterAccept]);
+  }, [state.items, invalidateAfterAccept, pushLevelUpIfAny]);
 
   const removeItem = useCallback(async (itemId: string) => {
     const ctx = await createServiceContext();

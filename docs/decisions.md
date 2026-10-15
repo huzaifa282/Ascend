@@ -227,3 +227,45 @@ proper per-entry code-splitting (confirmed by re-running the build).
   from another app, tray menu clicks, autostart actually relaunching into
   `--widget`) is entirely unverified — only `cargo check`, typecheck, lint,
   the Vitest suite and `vite build` ran in this environment.
+
+## 2026-10-15 — Phase 7 (part 1): Moments, Penalty Zone recovery, rest shields
+
+**Moments** (spec 10.9) use a small zustand FIFO queue (`useMomentsStore`)
+pushed to from every XP-awarding call site (`useCompleteTask`,
+`useCompleteDaily`, `useTimer`'s `creditSession`, the command bar's
+`acceptItem`/`acceptAll`) and rendered by one `<MomentsOverlay>` in `Shell`.
+Level-up's "stat changes (+1 Intellect...)" line is cut: none of the
+XP-awarding services currently return per-stat deltas in a shape worth
+threading through four call sites for a cosmetic line, so the overlay shows
+level + HP-restored only. Rank-up moments come from `dayClose`'s per-day
+summary (`trialPassed`/`fromRank`/`toRank`), which is now actually invoked —
+`useDayCloseOnMount` runs it once per main-window session, something no
+code called before this pass despite spec 5.4 requiring it.
+
+**Penalty Zone recovery** (`services/penaltyZone.ts`) was entirely unbuilt
+before this pass (entering was wired in `hp.ts`'s `applyHpDelta`; exiting
+was not). `checkPenaltyZoneRecovery` runs after `completeTask`,
+`timerCredit`-crediting and the command bar's `acceptEntryItem`, computing
+both recovery paths from the ledger (new repo queries:
+`tasks.countCompletedOverdueSince`, `activities.maxFocusSessionMinutesSince`)
+and exiting (HP -> `exitHp`, clear `penaltyZoneSince`) the moment either
+completes. Shell applies the danger chrome (window border, header rule,
+banner) from `usePenaltyZoneStatus`; Status shows the recovery region with
+both paths' progress and a 24h countdown. Not done: `completeTask`'s reward
+math never applies the penalty-zone XP multiplier (`logActivity`'s does) —
+a pre-existing inconsistency this pass didn't introduce or fix; the
+"HP-cap note if a penalty was reduced" sub-detail is also skipped.
+
+**Rest shields** (spec 10.7): `ShieldDialog` wired into Quests' Today tab
+(a "Rest today" button, since spec is explicit that Today itself gets no
+extra content). A rest day shows a banner, "FROZEN" in place of the streak
+figure on Status, and a muted "REST / FROZEN" badge with disabled checkboxes
+on every daily that day — read from `shields.listForMonth`, not the
+profile's `streakFrozenUntil` column (unclear what sets that column; shield
+days are detected directly from the shields table instead).
+
+**Known gap**: moments pushed from the widget window's own `useTimer`
+instance (focus sessions finished while only the widget is open, main
+hidden) never reach `main`'s overlay — zustand stores aren't shared across
+separate webviews, same reality as the music/timer cross-window sync
+elsewhere. Lower priority than a cross-window moments relay for now.

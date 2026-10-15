@@ -23,6 +23,8 @@ export {
   removeEntryItem,
   discardEntry,
   type SubmitEntryResult,
+  type AcceptEntryItemResult,
 } from './llm';
 export { buildAskSystemSummary, askSystem } from './askSystem';
 export { pickMusicFolder, scanMusicFolder, type ScannedTrack } from './music';
+export { getPenaltyZoneStatus, checkPenaltyZoneRecovery, type PenaltyZoneStatus, type CheckRecoveryResult } from './penaltyZone';

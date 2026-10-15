@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Countdown, QuestRow, RewardBadge, Tabs } from '@ascendant/ui';
+import { Badge, Button, Countdown, QuestRow, RewardBadge, Tabs } from '@ascendant/ui';
 import type { RewardTier } from '@ascendant/ui';
 import {
   baseReward,
@@ -12,8 +12,10 @@ import { DEFAULT_RULESET } from '@ascendant/engine';
 import { useProfile } from '../hooks/useProfile';
 import { useOpenTasks, useCompleteTask } from '../hooks/useTasks';
 import { useActiveDailies, useCompleteDaily, useTodaysDailyCompletions } from '../hooks/useDailies';
+import { useShieldStatus } from '../hooks/useRestShield';
 import { resolveRepos } from '../hooks/useRepos';
 import { useQuery } from '@tanstack/react-query';
+import { ShieldDialog } from '../components/ShieldDialog';
 
 type QuestTab = 'today' | 'week' | 'main';
 
@@ -43,8 +45,11 @@ export function Quests() {
     queryKey: ['mainQuests'],
     queryFn: async () => (await resolveRepos()).mainQuests.list(),
   });
+  const { data: shieldStatus } = useShieldStatus();
+  const [shieldDialogOpen, setShieldDialogOpen] = useState(false);
   const completeDaily = useCompleteDaily();
   const completeTask = useCompleteTask();
+  const restToday = Boolean(shieldStatus?.usedToday);
 
   const now = Date.now();
   const doneDailyIds = new Set((completions ?? []).map((c) => c.dailyId));
@@ -66,23 +71,39 @@ export function Quests() {
 
       {tab === 'today' && (
         <div className="flex flex-col gap-6">
+          {restToday && (
+            <div className="rounded-lg border border-rule bg-surface px-4 py-2 font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">
+              Rest day — a shield is covering today. Your streak is frozen and dailies can&apos;t fail.
+            </div>
+          )}
+
           <section className="rounded-lg border border-rule bg-bg a-card-clip">
             <div className="h-[52px] flex items-center justify-between px-4 border-b border-rule">
               <h2 className="font-display heading-m text-[18px] font-semibold a-heading">Dailies</h2>
-              <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">
-                {doneCount} OF {dailies?.length ?? 0} DONE
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">
+                  {doneCount} OF {dailies?.length ?? 0} DONE
+                </span>
+                {!restToday && (
+                  <Button variant="default" onClick={() => setShieldDialogOpen(true)}>
+                    REST TODAY
+                  </Button>
+                )}
+              </div>
             </div>
             {(dailies ?? []).map((d) => (
               <QuestRow
                 key={d.id}
                 title={d.title}
-                done={doneDailyIds.has(d.id)}
+                done={doneDailyIds.has(d.id) || restToday}
                 xp={d.xp}
-                onToggle={() => completeDaily.mutate(d.id)}
+                onToggle={restToday ? undefined : () => completeDaily.mutate(d.id)}
+                right={restToday ? <Badge tone="muted">REST / FROZEN</Badge> : undefined}
               />
             ))}
           </section>
+
+          <ShieldDialog open={shieldDialogOpen} onClose={() => setShieldDialogOpen(false)} />
 
           <section className="rounded-lg border border-rule bg-bg a-card-clip">
             <div className="h-[52px] flex items-center px-4 border-b border-rule">

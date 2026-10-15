@@ -30,6 +30,7 @@ import type { ServiceContext } from './context';
 import { completeDaily } from './completeDaily';
 import { completeTask } from './completeTask';
 import { logActivity } from './logActivity';
+import { checkPenaltyZoneRecovery } from './penaltyZone';
 import { rescheduleTask } from './rescheduleTask';
 
 export async function createProviderForSettings(ctx: ServiceContext): Promise<Provider | null> {
@@ -249,14 +250,23 @@ function weightsToStatWeights(weights: Array<{ code: StatCode; weight: number }>
 }
 
 /** Accepts a single pending entry_item, crediting it through the normal services. */
-export async function acceptEntryItem(ctx: ServiceContext, itemId: string, now: number): Promise<void> {
+export interface AcceptEntryItemResult {
+  levelsGained: number;
+  newLevel: number;
+  recoveryCleared: boolean;
+}
+
+export async function acceptEntryItem(ctx: ServiceContext, itemId: string, now: number): Promise<AcceptEntryItemResult> {
   const item = await ctx.repos.entryItems.getById(itemId);
   if (!item) throw new Error(`acceptEntryItem: item ${itemId} not found`);
   const payload = item.payload as Record<string, unknown>;
 
+  let levelsGained = 0;
+  let newLevel = 0;
+
   switch (item.kind) {
     case 'log': {
-      await logActivity(ctx, {
+      const logResult = await logActivity(ctx, {
         title: String(payload.summary),
         activityClass: String(payload.activity_class),
         durationMin: Number(payload.duration_min ?? 0),
@@ -269,8 +279,14 @@ export async function acceptEntryItem(ctx: ServiceContext, itemId: string, now: 
         plausibilityOverride: 'confirmed',
         now,
       });
+      levelsGained = logResult.levelsGained;
+      newLevel = logResult.newLevel;
       if ((payload.dailyMatch as { dailyId: string } | null)?.dailyId) {
-        await completeDaily(ctx, (payload.dailyMatch as { dailyId: string }).dailyId, now);
+        const dailyResult = await completeDaily(ctx, (payload.dailyMatch as { dailyId: string }).dailyId, now);
+        if (dailyResult.levelsGained > levelsGained) {
+          levelsGained = dailyResult.levelsGained;
+          newLevel = dailyResult.newLevel;
+        }
       }
       break;
     }
@@ -303,7 +319,9 @@ export async function acceptEntryItem(ctx: ServiceContext, itemId: string, now: 
       break;
     }
     case 'complete_task': {
-      await completeTask(ctx, String(payload.task_id), now);
+      const taskResult = await completeTask(ctx, String(payload.task_id), now);
+      levelsGained = taskResult.levelsGained;
+      newLevel = taskResult.newLevel;
       break;
     }
     case 'question':
@@ -311,6 +329,8 @@ export async function acceptEntryItem(ctx: ServiceContext, itemId: string, now: 
   }
 
   await ctx.repos.entryItems.update(itemId, { status: 'accepted', updatedAt: now });
+  const recovery = await checkPenaltyZoneRecovery(ctx, now);
+  return { levelsGained, newLevel, recoveryCleared: recovery.cleared };
 }
 
 export async function removeEntryItem(ctx: ServiceContext, itemId: string, now: number): Promise<void> {

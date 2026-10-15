@@ -23,6 +23,8 @@ export interface DayCloseDaySummary {
   hpDelta: number;
   streak: number;
   trialPassed: boolean;
+  fromRank?: string;
+  toRank?: string;
 }
 
 export async function dayClose(ctx: ServiceContext, now: number): Promise<DayCloseDaySummary[]> {
@@ -175,5 +177,12 @@ async function closeOneDay(
 
   await runAtomic(ctx.sql, writes as Parameters<typeof runAtomic>[1]);
 
-  return { date, hpDelta: result.hp.appliedDelta, streak: result.streak.newStreak, trialPassed };
+  return {
+    date,
+    hpDelta: result.hp.appliedDelta,
+    streak: result.streak.newStreak,
+    trialPassed,
+    fromRank: trialPassed ? activeTrial?.fromRank : undefined,
+    toRank: trialPassed ? activeTrial?.toRank : undefined,
+  };
 }

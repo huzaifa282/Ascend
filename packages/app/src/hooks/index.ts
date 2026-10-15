@@ -15,3 +15,5 @@ export { useMusicPlayer } from './useMusicPlayer';
 export type { MusicPlayerState } from './useMusicPlayer';
 export { useMusicPlayerRemote } from './useMusicPlayerRemote';
 export { useWidgetSettings, usePatchWidgetSettings } from './useWidgetSettings';
+export { usePenaltyZoneStatus } from './usePenaltyZone';
+export { useShieldStatus, useRestShield } from './useRestShield';

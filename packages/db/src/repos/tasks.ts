@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, lt } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, lt } from 'drizzle-orm';
 import { tasks } from '../schema';
 import type { Db } from './types';
 
@@ -26,6 +26,22 @@ export function createTasksRepo(db: Db) {
         .select()
         .from(tasks)
         .where(and(eq(tasks.status, 'open'), isNotNull(tasks.dueAt), lt(tasks.dueAt, nowMs)));
+    },
+    /** Tasks that were already overdue when Penalty Zone began and were completed since (spec 5.4's recovery path). */
+    async countCompletedOverdueSince(sinceMs: number): Promise<number> {
+      const rows = await db
+        .select()
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.status, 'done'),
+            isNotNull(tasks.completedAt),
+            gte(tasks.completedAt, sinceMs),
+            isNotNull(tasks.dueAt),
+            lt(tasks.dueAt, sinceMs),
+          ),
+        );
+      return rows.length;
     },
   };
 }

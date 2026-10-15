@@ -1,4 +1,4 @@
-import { between, desc, eq, sum } from 'drizzle-orm';
+import { and, between, desc, eq, gte, isNotNull, max, sum } from 'drizzle-orm';
 import { activities } from '../schema';
 import type { Db } from './types';
 
@@ -39,6 +39,14 @@ export function createActivitiesRepo(db: Db) {
         .from(activities)
         .where(between(activities.startedAt, startMs, endMs));
       return Number(rows[0]?.total ?? 0);
+    },
+    /** The longest single credited focus session since `sinceMs` (Penalty Zone recovery's other path). */
+    async maxFocusSessionMinutesSince(sinceMs: number): Promise<number> {
+      const rows = await db
+        .select({ max: max(activities.durationMin) })
+        .from(activities)
+        .where(and(isNotNull(activities.timerSessionId), gte(activities.startedAt, sinceMs)));
+      return Number(rows[0]?.max ?? 0);
     },
   };
 }
