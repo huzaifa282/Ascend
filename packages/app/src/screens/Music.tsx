@@ -80,7 +80,7 @@ export function Music() {
 
         <Card>
           <div className="flex flex-col gap-4 p-1">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 cursor-not-allowed opacity-60">
               <div>
                 <span className="font-display text-[14px]">System media</span>
                 <p className="font-mono text-[10.5px] text-text-muted">

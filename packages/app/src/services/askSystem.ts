@@ -61,12 +61,55 @@ export async function buildAskSystemSummary(ctx: ServiceContext, now: number): P
   };
 }
 
+/**
+ * A handful of common questions are plain local-data lookups — answering
+ * them without a model means "no model connected" doesn't block the
+ * simplest, most common asks. Anything not recognized falls through to the
+ * normal provider path (or its own no-model message).
+ */
+function tryLocalAnswer(question: string, summary: AskSystemSummary): string | null {
+  const q = question.toLowerCase();
+  const asksWhatsLeft = /what('?s| is) left|what do i have|remaining (today|tasks)/.test(q);
+  if (asksWhatsLeft && q.includes('today')) {
+    const dailiesLeft = summary.dailiesTotal - summary.dailiesDoneToday;
+    const parts: string[] = [];
+    if (summary.openTasks.length > 0) {
+      parts.push(`${summary.openTasks.length} task${summary.openTasks.length === 1 ? '' : 's'}: ${summary.openTasks.map((t) => t.title).join(', ')}.`);
+    } else {
+      parts.push('No open tasks.');
+    }
+    parts.push(
+      dailiesLeft > 0
+        ? `${dailiesLeft} of ${summary.dailiesTotal} dailies left.`
+        : summary.dailiesTotal > 0
+          ? 'All dailies done.'
+          : 'No dailies set up.',
+    );
+    return parts.join(' ');
+  }
+  return null;
+}
+
 export async function askSystem(ctx: ServiceContext, question: string, now: number): Promise<string> {
   const provider = await createProviderForSettings(ctx);
   const profile = await ctx.repos.profile.get();
   const tone = (profile?.tone ?? 'neutral') as Tone;
 
   await ctx.repos.chatMessages.create({ id: newId(), createdAt: now, updatedAt: now, role: 'user', text: question, at: now });
+
+  const summary = await buildAskSystemSummary(ctx, now);
+  const localAnswer = tryLocalAnswer(question, summary);
+  if (localAnswer) {
+    await ctx.db.insert(schema.chatMessages).values({
+      id: newId(),
+      createdAt: now,
+      updatedAt: now,
+      role: 'assistant',
+      text: localAnswer,
+      at: now,
+    });
+    return localAnswer;
+  }
 
   if (!provider) {
     const fallback = "I need a connected model to answer that — connect one in Settings > Model, or check the Status page for the numbers directly.";
@@ -81,7 +124,6 @@ export async function askSystem(ctx: ServiceContext, question: string, now: numb
     return fallback;
   }
 
-  const summary = await buildAskSystemSummary(ctx, now);
   const result = await provider.complete({
     system: buildAskSystemPrompt(tone),
     messages: [{ role: 'user', content: `${buildAskSystemContext(summary)}\n\nQuestion: ${question}` }],

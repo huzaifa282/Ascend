@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { newId } from '@ascendant/db';
+import { DEFAULT_RULESET, dailyXpForSize, type DailySize } from '@ascendant/engine';
 import { createServiceContext, completeDaily as completeDailyService } from '../services';
 import { localDateString } from '../lib/localTime';
 import { resolveRepos } from './useRepos';
@@ -23,6 +25,29 @@ export function useTodaysDailyCompletions(timezone: string) {
       return repos.dailyCompletions.listForDate(localDateString(Date.now(), timezone));
     },
     enabled: Boolean(timezone),
+  });
+}
+
+/** Minimal "+ Add" path for Quests (spec 10.5) — title + size, daily recurrence. */
+export function useCreateDaily() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ title, size }: { title: string; size: DailySize }) => {
+      const repos = await resolveRepos();
+      const now = Date.now();
+      await repos.dailies.create({
+        id: newId(),
+        createdAt: now,
+        updatedAt: now,
+        title,
+        statWeights: { DIS: 1 },
+        xp: dailyXpForSize(size, DEFAULT_RULESET),
+        recurrence: { type: 'daily' },
+        active: true,
+        sort: 0,
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dailies'] }),
   });
 }
 

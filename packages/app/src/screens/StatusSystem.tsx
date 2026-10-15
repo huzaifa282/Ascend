@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, SystemMessage } from '@ascendant/ui';
 import { ASK_SYSTEM_SUGGESTED_PROMPTS } from '@ascendant/llm';
 import { useAskSystem } from '../hooks/useAskSystem';
@@ -8,6 +9,7 @@ import { renderMessage } from '../system/messages';
 
 /** Status > System — spec 10.8: feed + Ask the System chat. */
 export function StatusSystem() {
+  const navigate = useNavigate();
   const { data: profile } = useProfile();
   const { data: feed } = useRecentSystemMessages(20);
   const { messages, pending, ask } = useAskSystem();
@@ -20,7 +22,15 @@ export function StatusSystem() {
   };
 
   return (
-    <div className="max-w-[1000px] mx-auto px-2 py-6 grid grid-cols-2 gap-8">
+    <div className="max-w-[1000px] mx-auto px-2 py-6 flex flex-col gap-4">
+      <button
+        type="button"
+        onClick={() => navigate('/status')}
+        className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted self-start hover:text-text"
+      >
+        &larr; Back to Status
+      </button>
+      <div className="grid grid-cols-2 gap-8">
       <section className="flex flex-col gap-3">
         <h1 className="font-display text-[22px] font-bold a-heading">System feed</h1>
         <div className="rounded-lg border border-rule bg-bg p-2">
@@ -79,6 +89,7 @@ export function StatusSystem() {
           </Button>
         </div>
       </section>
+      </div>
     </div>
   );
 }

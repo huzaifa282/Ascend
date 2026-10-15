@@ -1,8 +1,8 @@
 export { resolveRepos } from './useRepos';
 export { useProfile } from './useProfile';
-export { useOpenTasks, useCompleteTask } from './useTasks';
+export { useOpenTasks, useCompleteTask, useCreateTask } from './useTasks';
 export { useStats } from './useStats';
-export { useActiveDailies, useTodaysDailyCompletions, useCompleteDaily } from './useDailies';
+export { useActiveDailies, useTodaysDailyCompletions, useCompleteDaily, useCreateDaily } from './useDailies';
 export { useDailyXpSeries, useRecentSystemMessages, useTitles } from './useHistory';
 export { useModelSettings } from './useModelSettings';
 export { useCommandBar } from './useCommandBar';
@@ -24,3 +24,5 @@ export { useWeeklyReport } from './useWeeklyReport';
 export { useOnboarding } from './useOnboarding';
 export { useExportJson, useExportCsv, useImportJson, useDeleteAllData } from './useDataManagement';
 export { useHpLowToast } from './useHpLowToast';
+export { useHotkeySettings } from './useHotkeySettings';
+export { useCalendarMonth, useDayActivities } from './useCalendarMonth';

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { newId } from '@ascendant/db';
 import { checkPenaltyZoneRecovery, createServiceContext, completeTask as completeTaskService } from '../services';
 import { resolveRepos } from './useRepos';
 import { useMomentsStore } from '../stores/useMomentsStore';
@@ -11,6 +12,39 @@ export function useOpenTasks() {
       const repos = await resolveRepos();
       return repos.tasks.listOpen();
     },
+  });
+}
+
+/** Minimal "+ Add" path for Quests (spec 10.5) — no due date/difficulty picker, just a title; use the command bar or the task sheet for anything more specific. */
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (title: string) => {
+      const repos = await resolveRepos();
+      const now = Date.now();
+      await repos.tasks.create({
+        id: newId(),
+        createdAt: now,
+        updatedAt: now,
+        title,
+        notes: null,
+        dueAt: null,
+        windowStart: now,
+        difficulty: 3,
+        estMinutes: null,
+        statWeights: { DIS: 1 },
+        reminderMinutes: null,
+        status: 'open',
+        completedAt: null,
+        rewardTier: null,
+        xpAwarded: null,
+        rescheduleCount: 0,
+        mainQuestId: null,
+        emergency: false,
+        expiresAt: null,
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   });
 }
 

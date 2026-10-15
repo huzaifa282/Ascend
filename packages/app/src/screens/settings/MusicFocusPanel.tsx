@@ -86,13 +86,12 @@ export function MusicFocusPanel() {
           />
         </label>
 
-        <label className="flex items-center justify-between gap-3 cursor-pointer">
-          <span className="font-display text-[14px]">Lower music while dictating</span>
-          <Toggle
-            checked={musicSettings?.lowerMusicWhileDictating ?? true}
-            onChange={(v) => patchMusic.mutate({ lowerMusicWhileDictating: v })}
-            aria-label="Lower music while dictating"
-          />
+        <label className="flex items-center justify-between gap-3 cursor-not-allowed opacity-60">
+          <div>
+            <span className="font-display text-[14px]">Lower music while dictating</span>
+            <p className="font-mono text-[10.5px] text-text-muted">Coming in a later version.</p>
+          </div>
+          <Toggle checked={false} onChange={() => {}} disabled aria-label="Lower music while dictating" />
         </label>
       </div>
 
