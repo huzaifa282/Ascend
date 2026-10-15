@@ -7,6 +7,7 @@ import { History } from '../screens/History';
 import { Settings } from '../screens/Settings';
 import { StatusSystem } from '../screens/StatusSystem';
 import { Focus } from '../screens/Focus';
+import { Music } from '../screens/Music';
 import { Placeholder } from '../screens/Placeholder';
 import { DevComponents } from '../screens/DevComponents';
 
@@ -25,7 +26,7 @@ export function AppRouter() {
           <Route path="/status/report" element={<Placeholder title="Weekly report" phase={7} />} />
           <Route path="/quests" element={<Quests />} />
           <Route path="/quests/:id" element={<Placeholder title="Quest" phase={3} />} />
-          <Route path="/music" element={<Placeholder title="Music" phase={5} />} />
+          <Route path="/music" element={<Music />} />
           <Route path="/history" element={<History />} />
           <Route path="/settings" element={<Navigate to="/settings/model" replace />} />
           <Route path="/settings/:section" element={<Settings />} />

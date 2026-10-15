@@ -139,3 +139,37 @@ and width vary from one `@font-face`, matching spec 8.2's numeral-vs-body
 `font-stretch` distinction. Only the `latin` Unicode subset is vendored
 (English-first app, smaller bundle); non-Latin text falls back to the system
 sans-serif.
+
+## 2026-10-15 — Music folder: manual re-scan, broad static fs/asset scope
+
+Spec 11.1's music folder scanner (`commands::music_folder::scan_music_folder`)
+re-scans on demand only — the user re-runs the scan (e.g. after adding files)
+rather than the app watching the folder live with `notify`. A filesystem
+watcher adds real complexity (debouncing, partial-write detection, tearing
+down/rebuilding on folder change) for a feature whose primary use is a
+one-time or occasional library import; this can be added later without
+touching the scan command's shape.
+
+`capabilities/default.json` grants `fs:allow-read-file`/`fs:allow-read-dir`
+and `dialog:allow-open` with `"path": "**"`, and `tauri.conf.json` enables
+the asset protocol with `"scope": ["**"]`, instead of dynamically narrowing
+the scope to exactly the user-picked folder at runtime (Tauri 2 supports
+this via the fs/asset-protocol scope extension APIs). The music folder can
+be anywhere on disk and is chosen through an OS folder picker (implicit user
+consent), and all access is read-only, so a static broad scope is a
+pragmatic simplification rather than a security-relevant gap — but a
+production hardening pass should switch to per-folder dynamic scoping.
+
+## 2026-10-15 — System media (SMTC) deferred; music folder player ships first
+
+Spec 11.1's "System media" half (`media.rs`, Windows
+`GlobalSystemMediaTransportControlsSessionManager` via the `windows` crate:
+async COM session subscriptions, thumbnail-stream-to-data-URL, 4/s-throttled
+`music:changed` events) is deferred past phase 7. It's real platform-API
+surface this environment can't run or click-test, so getting its async
+session-lifecycle handling right blind is a poor trade against the rest of
+phases 5-7 that can be built and verified. The music folder scanner and
+built-in `<audio>`-element player (also spec 11.1) ship now — fully
+exercised through `cargo check`/`vite build` and manual testing once the
+user runs the app. `MusicSettings.systemMediaEnabled` stays in the schema,
+inert, mirroring `VoiceSettings`'s existing pattern for a deferred feature.

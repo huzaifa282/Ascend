@@ -25,3 +25,4 @@ export {
   type SubmitEntryResult,
 } from './llm';
 export { buildAskSystemSummary, askSystem } from './askSystem';
+export { pickMusicFolder, scanMusicFolder, type ScannedTrack } from './music';
