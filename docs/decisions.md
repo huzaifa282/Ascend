@@ -287,3 +287,24 @@ writes a row to `skill_suggestions`, so the banner only appears for
 suggestions seeded or inserted some other way. This is a background-job
 style feature in the same family as the title-counter work deferred
 earlier; both are real gaps, not wired in this pass.
+
+## 2026-10-15 — Phase 7 (part 3): Weekly report and share card
+
+`services/weeklyReport.ts` computes all five figures and stat gains
+straight from the ledger/repos (no cached weekly rollups exist). The
+"System's written review" is always the template-driven sentence; the
+optional LLM paragraph is a best-effort second `provider.complete()` call
+(same pattern as `askSystem`) that silently falls back to just the
+template sentence on any error, so a flaky/unconfigured provider never
+blocks the report from rendering.
+
+The share card is a real 1080x1350 DOM node rendered off-screen
+(`fixed -left-[9999px]`), captured by `html-to-image`'s `toPng` at
+pixelRatio 1 — not a scaled-down preview with CSS transforms, which would
+need un-transforming before capture. `html-to-image`, `@tauri-apps/plugin-fs`
+and `@tauri-apps/plugin-dialog` are all dynamic-imported inside
+`exportShareCardPng`, consistent with the sql.js precedent: confirmed via
+a real `vite build` that none of them land in `main`'s eager chunk.
+`dialog:allow-save` and `fs:allow-write-file` permissions (scope `**`,
+same pragmatic breadth as the music folder's read permissions) were added
+to `capabilities/default.json` for this.

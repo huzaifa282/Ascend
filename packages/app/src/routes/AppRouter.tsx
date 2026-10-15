@@ -12,6 +12,7 @@ import { Focus } from '../screens/Focus';
 import { Music } from '../screens/Music';
 import { StatDetail } from '../screens/StatDetail';
 import { Skills } from '../screens/Skills';
+import { WeeklyReport } from '../screens/WeeklyReport';
 import { Placeholder } from '../screens/Placeholder';
 import { DevComponents } from '../screens/DevComponents';
 
@@ -45,7 +46,7 @@ export function AppRouter() {
           <Route path="/status/stat/:code" element={<StatDetail />} />
           <Route path="/status/skills" element={<Skills />} />
           <Route path="/status/system" element={<StatusSystem />} />
-          <Route path="/status/report" element={<Placeholder title="Weekly report" phase={7} />} />
+          <Route path="/status/report" element={<WeeklyReport />} />
           <Route path="/quests" element={<Quests />} />
           <Route path="/quests/:id" element={<Placeholder title="Quest" phase={3} />} />
           <Route path="/music" element={<Music />} />
