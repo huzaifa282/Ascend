@@ -35,3 +35,4 @@ export {
   setProfileNameToneAndFinish,
   createSuggestedDailies,
 } from './onboarding';
+export { exportAllDataJson, exportLogCsv, importAllDataJson, deleteAllData, type DataExport } from './dataManagement';

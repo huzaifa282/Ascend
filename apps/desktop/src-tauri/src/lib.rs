@@ -21,6 +21,7 @@ use commands::windows::{
     is_autostart_enabled, open_main, open_main_window, set_autostart, show_default_companion_window,
     show_widget, toggle_companion_size,
 };
+use hotkey::{set_hotkey, DEFAULT_HOTKEY};
 use std::sync::Mutex;
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
@@ -45,6 +46,18 @@ fn default_companion_is_compact(conn: &rusqlite::Connection) -> bool {
         .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
         .and_then(|v| v.get("defaultSize").and_then(|s| s.as_str().map(|s| s == "compact")))
         .unwrap_or(false)
+}
+
+/// Reads `settings.hotkey.combo` the same ad-hoc way — falls back to the
+/// default when there's no settings row yet (before onboarding) or the
+/// column is missing it.
+fn saved_hotkey_combo(conn: &rusqlite::Connection) -> String {
+    let json: rusqlite::Result<String> =
+        conn.query_row("SELECT hotkey FROM settings LIMIT 1", [], |row| row.get(0));
+    json.ok()
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
+        .and_then(|v| v.get("combo").and_then(|c| c.as_str().map(str::to_string)))
+        .unwrap_or_else(|| DEFAULT_HOTKEY.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -80,6 +93,7 @@ pub fn run() {
             toggle_companion_size,
             set_autostart,
             is_autostart_enabled,
+            set_hotkey,
         ])
         .on_window_event(|window, event| {
             // Spec 7.1: closing main hides it to the tray; the companion
@@ -94,12 +108,13 @@ pub fn run() {
         .setup(|app| {
             let conn = init_db(app.handle()).expect("failed to open/migrate the database");
             let compact = default_companion_is_compact(&conn);
+            let hotkey_combo = saved_hotkey_combo(&conn);
             app.manage(AppDb(Mutex::new(conn)));
             app.manage(TimerManager(Mutex::new(TimerState::default())));
             spawn_tick_loop(app.handle().clone());
 
             tray::build_tray(app.handle())?;
-            hotkey::register_hotkey(app.handle());
+            hotkey::register_hotkey(app.handle(), &hotkey_combo);
 
             if !launched_widget_only() {
                 let _ = open_main_window(app.handle(), None);

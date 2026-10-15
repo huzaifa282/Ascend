@@ -337,3 +337,37 @@ just adds a wizard:
 - The optional LLM-paragraph-writing step (model connection) reuses
   `ModelPanel` as-is rather than a bespoke onboarding-only UI, trading a
   little visual customization for zero duplicated provider/key logic.
+
+## 2026-10-15 — Phase 7 (part 5): Data, Data sharing, Hotkey, About settings
+
+**Data** (export/import/delete-all): JSON export dumps all 22 tables via
+Drizzle; import replaces everything (delete-all then insert-all, both
+atomic). Table order matters for exactly two FK pairs the schema actually
+enforces (`entry_items -> entries`, `daily_completions -> dailies` —
+confirmed by grepping `schema.ts` for `.references(`; everything else has
+no enforced FK despite some columns conceptually pointing elsewhere).
+CSV export is the activity log only, not a full dump — spec's "export
+JSON/CSV" reads most naturally as two different exports, not two formats
+of the same one. Delete-all requires typing "DELETE" and redirects to
+onboarding afterward, since there's no profile left for Shell to render
+against.
+
+**Data sharing** (spec 12.3, mislabeled 13.3 in the Settings summary line):
+the level picker and review queue (list pending `share_queue` rows,
+Remove) are wired to real repo methods. "Send reviewed items" and "Delete
+previously shared data" are visibly disabled with "Sharing endpoint not
+configured" per spec's own instruction. **Not built**: nothing actually
+*populates* `share_queue` yet — the interpretation-feedback trigger point
+would be ConfirmCard's edit flow, which doesn't exist (`onEdit` is still a
+no-op), and the anonymous-usage weekly-counts job is a background feature
+in the same unbuilt family as the title-counters and skill-suggestion
+scanner noted earlier. The UI and queue are real; nothing feeds the queue.
+
+**Hotkey**: recording a combo now actually re-registers the global
+shortcut — added `hotkey::set_hotkey` (unregister-all, then register the
+new combo) since the hotkey module only supported one fixed
+startup-time registration before. Startup now reads
+`settings.hotkey.combo` the same ad-hoc way `defaultSize` is read, falling
+back to the default when there's no settings row yet.
+
+**About**: static version/license/links — nothing to wire.

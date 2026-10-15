@@ -5,6 +5,10 @@ import { useUiStore } from '../stores/useUiStore';
 import { ModelPanel } from './settings/ModelPanel';
 import { MusicFocusPanel } from './settings/MusicFocusPanel';
 import { WidgetPanel } from './settings/WidgetPanel';
+import { DataPanel } from './settings/DataPanel';
+import { DataSharingPanel } from './settings/DataSharingPanel';
+import { HotkeyPanel } from './settings/HotkeyPanel';
+import { AboutPanel } from './settings/AboutPanel';
 
 const SECTIONS = [
   { id: 'model', label: 'Model' },
@@ -59,6 +63,14 @@ export function Settings() {
           <MusicFocusPanel />
         ) : section === 'widget' ? (
           <WidgetPanel />
+        ) : section === 'data' ? (
+          <DataPanel />
+        ) : section === 'sharing' ? (
+          <DataSharingPanel />
+        ) : section === 'hotkey' ? (
+          <HotkeyPanel />
+        ) : section === 'about' ? (
+          <AboutPanel />
         ) : section === 'appearance' ? (
           <div className="flex flex-col gap-6">
             <h1 className="font-display text-[22px] font-bold a-heading">Appearance</h1>
