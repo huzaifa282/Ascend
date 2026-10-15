@@ -3,5 +3,9 @@
   "identifier": "widget",
   "description": "Permissions for the companion widget and compact strip windows.",
   "windows": ["widget", "strip"],
-  "permissions": ["core:default", "window-state:default"]
+  "permissions": [
+    "core:default",
+    "window-state:default",
+    "core:window:allow-start-dragging"
+  ]
 }
