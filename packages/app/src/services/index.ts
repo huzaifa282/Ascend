@@ -4,7 +4,13 @@ export { completeTask, type CompleteTaskResult } from './completeTask';
 export { rescheduleTask } from './rescheduleTask';
 export { completeDaily, type CompleteDailyResult } from './completeDaily';
 export { dayClose, type DayCloseDaySummary } from './dayClose';
-export { timerCredit, type TimerCreditInput, type TimerCreditResult } from './timerCredit';
+export {
+  timerCredit,
+  startTimerSession,
+  type TimerCreditInput,
+  type TimerCreditResult,
+  type StartTimerSessionInput,
+} from './timerCredit';
 export { useShield, type UseShieldResult } from './useShield';
 export { recalcFromHistory } from './recalcFromHistory';
 export { applyHpDelta, type ApplyHpResult } from './hp';

@@ -1,9 +1,38 @@
 /** Spec 5.7 — crediting a finished (or long-enough-stopped) focus session. */
-import { schema } from '@ascendant/db';
+import { newId, schema } from '@ascendant/db';
 import { FOCUS_SESSION_INTENSITY, sessionStatWeights, shouldCreditSession, type SessionEndReason, type StatWeights } from '@ascendant/engine';
 import { eq } from 'drizzle-orm';
 import type { ServiceContext } from './context';
 import { logActivity } from './logActivity';
+
+export interface StartTimerSessionInput {
+  kind: 'focus' | 'break';
+  plannedMinutes: number;
+  taskId?: string | null;
+  dailyId?: string | null;
+  skillId?: string | null;
+  now: number;
+}
+
+/** Creates the timer_sessions row the Rust timer's `timer:done` event is later matched against. */
+export async function startTimerSession(ctx: ServiceContext, input: StartTimerSessionInput): Promise<string> {
+  const id = newId();
+  await ctx.db.insert(schema.timerSessions).values({
+    id,
+    createdAt: input.now,
+    updatedAt: input.now,
+    kind: input.kind,
+    plannedMin: input.plannedMinutes,
+    startedAt: input.now,
+    endedAt: null,
+    pausedMs: 0,
+    taskId: input.taskId,
+    dailyId: input.dailyId,
+    skillId: input.skillId,
+    status: 'running',
+  });
+  return id;
+}
 
 export interface TimerCreditInput {
   timerSessionId: string;

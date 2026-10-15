@@ -1,8 +1,9 @@
-import { ClockCard, LevelChip, MusicCard, TaskList } from '@ascendant/ui';
+import { LevelChip, MusicCard, TaskList } from '@ascendant/ui';
 import { xpNeeded, DEFAULT_RULESET } from '@ascendant/engine';
 import { useNavigate } from 'react-router-dom';
 import { useOpenTasks, useCompleteTask } from '../hooks/useTasks';
 import { useProfile } from '../hooks/useProfile';
+import { ClockCardContainer } from '../components/ClockCardContainer';
 
 function greetingFor(hour: number): string {
   if (hour < 12) return 'Good morning';
@@ -15,9 +16,9 @@ const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 
 
 /**
  * Today (home) — spec 10.2. Exactly: header row, two-column grid
- * (ClockCard+MusicCard / TaskList), one quiet link. The clock and music
- * cards show a static idle state until phase 5 wires the Rust timer/media
- * backends; the task list is wired to the real database already.
+ * (ClockCard+MusicCard / TaskList), one quiet link. The clock is wired to
+ * the real Rust timer (phase 5); music still shows a static idle state
+ * until the system-media/music-folder backends land.
  */
 export function Today() {
   const navigate = useNavigate();
@@ -68,7 +69,7 @@ export function Today() {
 
       <div className="grid grid-cols-[1fr_1.1fr] gap-6">
         <div className="flex flex-col gap-6">
-          <ClockCard state="idle" elapsedMin={0} totalMin={25} onOpen={() => {}} onPlayPause={() => {}} />
+          <ClockCardContainer />
           <MusicCard nothingPlaying />
         </div>
         <TaskList

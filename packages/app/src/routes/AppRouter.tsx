@@ -6,6 +6,7 @@ import { Quests } from '../screens/Quests';
 import { History } from '../screens/History';
 import { Settings } from '../screens/Settings';
 import { StatusSystem } from '../screens/StatusSystem';
+import { Focus } from '../screens/Focus';
 import { Placeholder } from '../screens/Placeholder';
 import { DevComponents } from '../screens/DevComponents';
 
@@ -28,7 +29,7 @@ export function AppRouter() {
           <Route path="/history" element={<History />} />
           <Route path="/settings" element={<Navigate to="/settings/model" replace />} />
           <Route path="/settings/:section" element={<Settings />} />
-          <Route path="/focus" element={<Placeholder title="Focus mode" phase={5} />} />
+          <Route path="/focus" element={<Focus />} />
           <Route path="/onboarding/:step" element={<Placeholder title="Awakening" phase={7} />} />
           <Route path="/dev/components" element={<DevComponents />} />
           <Route path="*" element={<Navigate to="/today" replace />} />

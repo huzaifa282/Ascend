@@ -8,3 +8,5 @@ export { useModelSettings } from './useModelSettings';
 export { useCommandBar } from './useCommandBar';
 export type { CommandBarState } from './useCommandBar';
 export { useAskSystem, useChatMessages } from './useAskSystem';
+export { useTimer } from './useTimer';
+export type { TimerKind, TimerPhase, TimerState } from './useTimer';
