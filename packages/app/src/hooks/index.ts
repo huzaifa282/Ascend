@@ -17,3 +17,6 @@ export { useMusicPlayerRemote } from './useMusicPlayerRemote';
 export { useWidgetSettings, usePatchWidgetSettings } from './useWidgetSettings';
 export { usePenaltyZoneStatus } from './usePenaltyZone';
 export { useShieldStatus, useRestShield } from './useRestShield';
+export { useStatDetail } from './useStatDetail';
+export type { StatDetail } from './useStatDetail';
+export { useSkillsList, useOpenSkillSuggestions, useApproveSkillSuggestion, useDismissSkillSuggestion } from './useSkills';

@@ -10,6 +10,8 @@ import { Settings } from '../screens/Settings';
 import { StatusSystem } from '../screens/StatusSystem';
 import { Focus } from '../screens/Focus';
 import { Music } from '../screens/Music';
+import { StatDetail } from '../screens/StatDetail';
+import { Skills } from '../screens/Skills';
 import { Placeholder } from '../screens/Placeholder';
 import { DevComponents } from '../screens/DevComponents';
 
@@ -40,8 +42,8 @@ export function AppRouter() {
           <Route index element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Today />} />
           <Route path="/status" element={<Status />} />
-          <Route path="/status/stat/:code" element={<Placeholder title="Stat detail" phase={7} />} />
-          <Route path="/status/skills" element={<Placeholder title="Skills" phase={7} />} />
+          <Route path="/status/stat/:code" element={<StatDetail />} />
+          <Route path="/status/skills" element={<Skills />} />
           <Route path="/status/system" element={<StatusSystem />} />
           <Route path="/status/report" element={<Placeholder title="Weekly report" phase={7} />} />
           <Route path="/quests" element={<Quests />} />

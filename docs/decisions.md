@@ -269,3 +269,21 @@ instance (focus sessions finished while only the widget is open, main
 hidden) never reach `main`'s overlay — zustand stores aren't shared across
 separate webviews, same reality as the music/timer cross-window sync
 elsewhere. Lower priority than a cross-window moments relay for now.
+
+## 2026-10-15 — Phase 7 (part 2): Stat detail and Skills screens
+
+Stat detail (spec 10.10) rebuilds its value-over-time series from the raw
+`stat_events` ledger (no stored daily snapshots exist) — same approach
+`recalculate()` already uses for totals, just scoped to one stat code and
+windowed. "Top contributors" groups by activity title (joined from
+`refId`) or a generic "Tasks" bucket; the line chart is hand-written SVG
+per decision #7.
+
+Skills (spec 10.11) renders existing skills/open suggestions with
+Approve/Dismiss. The suggestion-*generation* pipeline (scanning unlinked
+activity labels for 5+ occurrences in a 21-day window, per
+`shouldSuggestSkill` in the engine) is not built — nothing currently
+writes a row to `skill_suggestions`, so the banner only appears for
+suggestions seeded or inserted some other way. This is a background-job
+style feature in the same family as the title-counter work deferred
+earlier; both are real gaps, not wired in this pass.
