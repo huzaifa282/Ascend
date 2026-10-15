@@ -1,8 +1,19 @@
+import { invoke } from '@tauri-apps/api/core';
 import { CommandBar, ConfirmCard } from '@ascendant/ui';
 import type { ConfirmItemData } from '@ascendant/ui';
 import type { EntryItemRow } from '@ascendant/db';
 import { formatAmPm } from '@ascendant/llm';
 import { useCommandBar } from '../hooks/useCommandBar';
+import { useHotkeySettings } from '../hooks/useHotkeySettings';
+import { formatAccelerator } from '../lib/formatAccelerator';
+
+// This container is shared by the main window, the widget and the floating
+// command window (spec 6.1/11.3) — the latter two have no router, so "open
+// Settings" asks Rust to show/focus `main` and navigate it there, the same
+// way every other companion "open" action works (see WidgetContent.tsx).
+function openMainSettings(): void {
+  void invoke('open_main', { route: '/settings/model' });
+}
 
 function toConfirmItem(row: EntryItemRow): ConfirmItemData {
   const payload = row.payload as Record<string, unknown>;
@@ -51,6 +62,7 @@ function toConfirmItem(row: EntryItemRow): ConfirmItemData {
 /** Wires the ui package's CommandBar + ConfirmCard to the real services (spec 6.1, 10.4). */
 export function CommandBarContainer() {
   const { state, setValue, submit, acceptItem, acceptAll, removeItem, discard } = useCommandBar();
+  const { data: hotkey } = useHotkeySettings();
 
   return (
     <div className="w-full flex flex-col gap-2">
@@ -58,18 +70,37 @@ export function CommandBarContainer() {
         value={state.value}
         onChange={setValue}
         onSubmit={submit}
-        hotkeyHint="Ctrl+Shift+Space"
+        hotkeyHint={formatAccelerator(hotkey?.combo ?? 'CommandOrControl+Shift+Space')}
         micDisabled
         micTitle="Voice input is coming in a later version"
         disabled={state.status === 'interpreting'}
-        showStatusStrip={state.status === 'interpreting' || state.status === 'error'}
-        status={state.status === 'interpreting' ? 'interpreting' : state.status === 'error' ? 'error' : 'idle'}
+        showStatusStrip={state.status === 'interpreting' || state.status === 'error' || state.status === 'queued'}
+        status={
+          state.status === 'interpreting'
+            ? 'interpreting'
+            : state.status === 'error'
+              ? 'error'
+              : state.status === 'queued'
+                ? 'offline_queued'
+                : 'idle'
+        }
         statusText={
           state.status === 'interpreting'
             ? 'Interpreting…'
-            : state.status === 'error'
+            : state.status === 'error' || state.status === 'queued'
               ? state.error
               : undefined
+        }
+        fixAction={
+          state.status === 'queued' && state.needsModelSetup ? (
+            <button
+              type="button"
+              onClick={openMainSettings}
+              className="font-mono text-[11px] uppercase tracking-[.1em] text-accent hover:underline flex-none"
+            >
+              OPEN SETTINGS
+            </button>
+          ) : undefined
         }
       />
       {state.status === 'needs_confirm' && state.items.length > 0 && (

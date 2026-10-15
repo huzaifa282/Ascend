@@ -22,7 +22,7 @@ export function WidgetContent() {
   const { data: openTasks } = useOpenTasks();
   const { data: widgetSettings } = useWidgetSettings();
   const patchWidgetSettings = usePatchWidgetSettings();
-  const { state: timer, pause, resume, stop, addFiveMinutes } = useTimer();
+  const { state: timer, start, pause, resume, stop, addFiveMinutes } = useTimer();
   const [pinned, setPinned] = useState(true);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function WidgetContent() {
 
   return (
     <div
-      className="h-screen w-screen flex flex-col bg-bg border border-rule rounded-lg overflow-hidden text-text"
+      className="h-screen w-screen flex flex-col bg-bg border border-rule rounded-lg overflow-hidden overflow-x-hidden text-text"
       style={{ opacity: (widgetSettings?.opacity ?? 100) / 100 }}
     >
       <div
@@ -59,7 +59,7 @@ export function WidgetContent() {
             icon="pin"
             aria-label={pinned ? 'Unpin from top' : 'Pin to top'}
             size={16}
-            className={pinned ? 'text-accent' : undefined}
+            className={pinned ? 'text-on-accent bg-accent hover:text-on-accent hover:bg-accent' : undefined}
             onClick={() => {
               setPinned((p) => !p);
               patchWidgetSettings.mutate({ alwaysOnTop: !pinned });
@@ -70,7 +70,7 @@ export function WidgetContent() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 px-4 pb-4 overflow-y-auto flex-1">
+      <div className="flex flex-col gap-4 px-4 pb-4 overflow-y-auto overflow-x-hidden flex-1">
         {profile &&
           (levelingEnabled ? (
             <div className="flex flex-col gap-2">
@@ -97,21 +97,16 @@ export function WidgetContent() {
           )}
         </button>
 
-        {!timerIdle && (
-          <div
-            className="flex items-center justify-center gap-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <IconButton icon="stop" aria-label="Stop" onClick={() => void stop()} />
-            <PlayButton
-              playing={timer.phase === 'running'}
-              onClick={() => void (timer.phase === 'running' ? pause() : resume())}
-              aria-label={timer.phase === 'running' ? 'Pause' : 'Resume'}
-              size="small"
-            />
-            <IconButton icon="plus" aria-label="Add 5 minutes" onClick={() => void addFiveMinutes()} />
-          </div>
-        )}
+        <div className="flex items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
+          {!timerIdle && <IconButton icon="stop" aria-label="Stop" onClick={() => void stop()} />}
+          <PlayButton
+            playing={timer.phase === 'running'}
+            onClick={() => void (timerIdle ? start('focus', 25) : timer.phase === 'running' ? pause() : resume())}
+            aria-label={timerIdle ? 'Start focus timer' : timer.phase === 'running' ? 'Pause' : 'Resume'}
+            size="small"
+          />
+          {!timerIdle && <IconButton icon="plus" aria-label="Add 5 minutes" onClick={() => void addFiveMinutes()} />}
+        </div>
 
         <MusicCardContainer />
 

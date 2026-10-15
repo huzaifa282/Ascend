@@ -30,8 +30,11 @@ export interface TimerModalProps {
   onSoundAtEndChange: (on: boolean) => void;
   autoStartBreaks: boolean;
   onAutoStartBreaksChange: (on: boolean) => void;
+  /** Idle -> start, running -> pause, paused -> resume; the icon/label follow `isRunning`/`isIdle`. */
+  onPlayPause: () => void;
+  isRunning: boolean;
+  isIdle: boolean;
   onStop: () => void;
-  onPause: () => void;
   onAddFive: () => void;
   onFullScreen: () => void;
 }
@@ -58,7 +61,11 @@ export function TimerModal(props: TimerModalProps) {
         <Dial size={180} elapsedMin={props.elapsedMin} totalMin={props.totalMin} onBreak={props.onBreak} />
         <div className="flex items-center gap-2">
           <RoundButton icon="stop" aria-label="Stop" onClick={props.onStop} />
-          <RoundButton icon="pause" aria-label="Pause" onClick={props.onPause} />
+          <RoundButton
+            icon={props.isRunning ? 'pause' : 'play'}
+            aria-label={props.isIdle ? 'Start' : props.isRunning ? 'Pause' : 'Resume'}
+            onClick={props.onPlayPause}
+          />
           <RoundButton icon="plus" aria-label="Add 5 minutes" onClick={props.onAddFive} />
         </div>
       </div>

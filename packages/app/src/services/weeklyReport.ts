@@ -14,7 +14,7 @@ export interface WeeklyReport {
   weekLabel: string;
   xpThisWeek: number;
   bestDay: { date: string; xp: number } | null;
-  onTimeRatePct: number;
+  onTimeRatePct: number | null;
   questsDone: number;
   streakDays: number;
   statGains: WeeklyReportStatGain[];
@@ -46,10 +46,12 @@ export async function buildWeeklyReport(ctx: ServiceContext, now: number): Promi
     questsDoneThisWeek += completions.length;
   }
   const xpThisWeek = dailyXp.reduce((sum, d) => sum + d.xp, 0);
-  const bestDay = dailyXp.reduce<{ date: string; xp: number } | null>(
-    (best, d) => (!best || d.xp > best.xp ? d : best),
-    null,
-  );
+  // Null (not a 0-XP "best day") when nothing was logged all week — spec:
+  // "Best day +0" reads as a real result when there's none to report.
+  const bestDay =
+    xpThisWeek > 0
+      ? dailyXp.reduce<{ date: string; xp: number } | null>((best, d) => (!best || d.xp > best.xp ? d : best), null)
+      : null;
 
   const tasksDoneThisWeek = await ctx.repos.tasks.listCompletedBetween(weekStartMs, now);
   questsDoneThisWeek += tasksDoneThisWeek.filter((t) => t.status === 'done').length;
@@ -57,7 +59,7 @@ export async function buildWeeklyReport(ctx: ServiceContext, now: number): Promi
   const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
   const tasksLast30Days = (await ctx.repos.tasks.listCompletedBetween(thirtyDaysAgo, now)).filter((t) => t.dueAt != null);
   const onTimeCount = tasksLast30Days.filter((t) => t.rewardTier && t.rewardTier !== 'late' && t.rewardTier !== 'failed').length;
-  const onTimeRatePct = tasksLast30Days.length > 0 ? Math.round((onTimeCount / tasksLast30Days.length) * 100) : 100;
+  const onTimeRatePct = tasksLast30Days.length > 0 ? Math.round((onTimeCount / tasksLast30Days.length) * 100) : null;
 
   const statEventsThisWeek = await ctx.repos.events.listStatBetween(weekStartMs, now);
   const stats = await ctx.repos.stats.list();
@@ -78,7 +80,8 @@ export async function buildWeeklyReport(ctx: ServiceContext, now: number): Promi
   const weekLabel = `${weekStartLabel.toUpperCase()} - ${weekEndLabel.toUpperCase()}`;
 
   const topStat = statGains[0];
-  const summary = `This week: ${xpThisWeek} XP, ${questsDoneThisWeek} quests done, a ${onTimeRatePct}% on-time rate. ${
+  const onTimeClause = onTimeRatePct != null ? `, a ${onTimeRatePct}% on-time rate` : '';
+  const summary = `This week: ${xpThisWeek} XP, ${questsDoneThisWeek} quests done${onTimeClause}. ${
     topStat ? `${topStat.name} grew the most (+${topStat.gain} XP). ` : ''
   }${
     profile.streakDays > 0 ? `The streak is at ${profile.streakDays} day${profile.streakDays === 1 ? '' : 's'}.` : ''
@@ -93,7 +96,7 @@ export async function buildWeeklyReport(ctx: ServiceContext, now: number): Promi
         messages: [
           {
             role: 'user',
-            content: `Week ${weekLabel}: ${xpThisWeek} XP, ${questsDoneThisWeek} quests done, ${onTimeRatePct}% on-time rate, streak ${profile.streakDays} days. Top stat gains: ${statGains.map((s) => `${s.name} +${s.gain}`).join(', ') || 'none'}.`,
+            content: `Week ${weekLabel}: ${xpThisWeek} XP, ${questsDoneThisWeek} quests done${onTimeRatePct != null ? `, ${onTimeRatePct}% on-time rate` : ''}, streak ${profile.streakDays} days. Top stat gains: ${statGains.map((s) => `${s.name} +${s.gain}`).join(', ') || 'none'}.`,
           },
         ],
         maxTokens: 200,

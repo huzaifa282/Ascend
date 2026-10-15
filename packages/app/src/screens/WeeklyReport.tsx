@@ -43,7 +43,7 @@ export function WeeklyReport() {
       <div className="grid grid-cols-5 gap-4">
         <Figure label="XP this week" value={String(report.xpThisWeek)} accent />
         <Figure label="Best day" value={report.bestDay ? `+${report.bestDay.xp}` : '—'} />
-        <Figure label="On-time rate" value={`${report.onTimeRatePct}%`} />
+        <Figure label="On-time rate" value={report.onTimeRatePct != null ? `${report.onTimeRatePct}%` : '—'} />
         <Figure label="Quests done" value={String(report.questsDone)} />
         <Figure label="Streak" value={`${report.streakDays}d`} />
       </div>
@@ -88,7 +88,7 @@ export function WeeklyReport() {
           </div>
           <div className="flex items-center gap-12">
             <Figure label="XP this week" value={String(report.xpThisWeek)} accent large />
-            <Figure label="On-time rate" value={`${report.onTimeRatePct}%`} large />
+            <Figure label="On-time rate" value={report.onTimeRatePct != null ? `${report.onTimeRatePct}%` : '—'} large />
             <Figure label="Streak" value={`${report.streakDays}d`} large />
           </div>
           <div className="flex flex-col gap-3 w-full max-w-[760px]">

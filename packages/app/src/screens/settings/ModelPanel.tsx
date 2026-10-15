@@ -1,14 +1,17 @@
+import { useState } from 'react';
 import { Badge, Button } from '@ascendant/ui';
 import { describeError } from '@ascendant/llm';
 import type { ProviderId } from '@ascendant/llm';
 import { useModelSettings } from '../../hooks/useModelSettings';
 import type { ModelProvider } from '../../settings/schema';
 
-const PROVIDERS: { id: ModelProvider; label: string; needsKey: boolean }[] = [
-  { id: 'openai', label: 'OpenAI', needsKey: true },
-  { id: 'anthropic', label: 'Anthropic', needsKey: true },
-  { id: 'gemini', label: 'Gemini', needsKey: true },
-  { id: 'openrouter', label: 'OpenRouter', needsKey: true },
+const MASKED_KEY = '••••••••••••••••';
+
+const PROVIDERS: { id: ModelProvider; label: string; needsKey: boolean; keyPlaceholder?: string }[] = [
+  { id: 'openai', label: 'OpenAI', needsKey: true, keyPlaceholder: 'sk-...' },
+  { id: 'anthropic', label: 'Anthropic', needsKey: true, keyPlaceholder: 'sk-ant-...' },
+  { id: 'gemini', label: 'Gemini', needsKey: true, keyPlaceholder: 'AIza...' },
+  { id: 'openrouter', label: 'OpenRouter', needsKey: true, keyPlaceholder: 'sk-or-...' },
   { id: 'ollama', label: 'Ollama (local)', needsKey: false },
   { id: 'lmstudio', label: 'LM Studio (local)', needsKey: false },
 ];
@@ -17,6 +20,8 @@ const PROVIDERS: { id: ModelProvider; label: string; needsKey: boolean }[] = [
 export function ModelPanel() {
   const { state, setProvider, setApiKeyInput, setModel, saveAndTest } = useModelSettings();
   const providerDef = PROVIDERS.find((p) => p.id === state.provider);
+  const [keyFocused, setKeyFocused] = useState(false);
+  const showMask = state.hasKey && !keyFocused && state.apiKeyInput === '';
 
   return (
     <div className="flex flex-col gap-6 max-w-md">
@@ -47,9 +52,11 @@ export function ModelPanel() {
               <input
                 id="api-key"
                 type="password"
-                value={state.apiKeyInput}
+                value={showMask ? MASKED_KEY : state.apiKeyInput}
+                onFocus={() => setKeyFocused(true)}
+                onBlur={() => setKeyFocused(false)}
                 onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder={state.hasKey ? '••••••••••••' : 'sk-...'}
+                placeholder={providerDef?.keyPlaceholder ?? 'sk-...'}
                 className="h-touch rounded-md border border-rule bg-surface px-3 font-mono text-[13px]"
               />
             </div>
@@ -99,6 +106,7 @@ export function ModelPanel() {
                 </div>
               ))}
           </div>
+          {state.saveError && <Badge tone="danger">{state.saveError}</Badge>}
         </>
       )}
     </div>

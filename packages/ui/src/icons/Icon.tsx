@@ -49,6 +49,7 @@ const PATHS: Record<IconKey, string> = {
   speaker: 'M5 9.5h3.5L13 5.5v13L8.5 14.5H5z',
   queue:   'M4.5 6h11 M4.5 12h11 M4.5 18h7 M17 16l3 3-3 3 M17.5 19h3',
   search:  'M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z M15.5 15.5 20 20',
+  music:   'M11 18a3 3 0 1 1-6 0 3 3 0 1 1 6 0Z M9.5 5h2v13h-2z M11.5 5l5 2.5-5 3z',
 };
 
 // Union of icon names (kept in sync with PATHS above).
@@ -57,7 +58,7 @@ export type IconKey =
   | 'edit' | 'plus' | 'pin' | 'expand' | 'collapse' | 'warn' | 'shield' | 'clock' | 'enter'
   | 'chat' | 'bolt' | 'chev' | 'lock' | 'share' | 'trash' | 'rest' | 'stop' | 'prev' | 'next'
   | 'play' | 'pause' | 'shuffle' | 'repeat' | 'heart' | 'vol' | 'ext' | 'folder' | 'copy'
-  | 'speaker' | 'queue' | 'search';
+  | 'speaker' | 'queue' | 'search' | 'music';
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconKey;
@@ -83,7 +84,7 @@ export function Icon({ name, size = 24, 'aria-label': ariaLabel, ...rest }: Icon
       aria-hidden={ariaLabel ? undefined : true}
       {...rest}
     >
-      {name === 'play' || name === 'heart' ? (
+      {name === 'play' || name === 'heart' || name === 'pause' || name === 'stop' || name === 'music' ? (
         <path d={d} fill="currentColor" stroke="none" />
       ) : (
         parts.map((p, i) => <path key={i} d={p} />)

@@ -39,7 +39,7 @@ export function ClockCard({ state, elapsedMin, totalMin, linkedTitle, onOpen, on
           {label}
         </span>
         <span className="font-display font-bold a-numeral tabular-nums text-[56px] leading-[1]">
-          {idle ? '--:--' : `${mm}:${ss}`}
+          {mm}:{ss}
         </span>
         {!idle && (
           <div className="h-1 rounded-pill bg-surface overflow-hidden w-full max-w-[200px]">
@@ -50,18 +50,16 @@ export function ClockCard({ state, elapsedMin, totalMin, linkedTitle, onOpen, on
           <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted truncate">{linkedTitle}</span>
         )}
       </button>
-      {!idle && (
-        <div className="absolute bottom-4 right-4">
-          <PlayButton
-            playing={state === 'running'}
-            onClick={(e) => {
-              e.stopPropagation();
-              onPlayPause();
-            }}
-            aria-label={state === 'running' ? 'Pause' : 'Resume'}
-          />
-        </div>
-      )}
+      <div className="absolute bottom-4 right-4">
+        <PlayButton
+          playing={state === 'running'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPlayPause();
+          }}
+          aria-label={idle ? 'Start' : state === 'running' ? 'Pause' : 'Resume'}
+        />
+      </div>
     </div>
   );
 }

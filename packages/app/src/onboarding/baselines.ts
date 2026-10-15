@@ -4,7 +4,55 @@
  * `statValue()` (scale 2000) lands starting values roughly between 5 and
  * 35, per spec's own description of the intended range.
  */
-import type { StatCode } from '@ascendant/engine';
+import type { StatCode, TitleKey } from '@ascendant/engine';
+
+/**
+ * The eight shipped titles (spec 5.10) — duplicated from `packages/seed`'s
+ * copy rather than shared, since `seed` depends on `app`, not the other
+ * way around. Pre-seeded here as locked rows so History > Titles has
+ * something to show a real (non-demo) profile from day one, instead of
+ * staying permanently empty until some future title-awarding job exists.
+ */
+export const TITLE_DEFS: { key: TitleKey; name: string; description: string; rule: Record<string, unknown> }[] = [
+  { key: 'first_light', name: 'First Light', description: 'Your first confirmed log.', rule: { kind: 'first_confirmed_log' } },
+  {
+    key: 'early_riser',
+    name: 'Early Riser',
+    description: 'A log before 08:00 on 7 consecutive days.',
+    rule: { kind: 'consecutive_early_logs', days: 7, cutoffHour: 8 },
+  },
+  {
+    key: 'steady_hand',
+    name: 'Steady Hand',
+    description: '20 tasks finished on time or early.',
+    rule: { kind: 'tasks_on_time_or_early', count: 20 },
+  },
+  {
+    key: 'iron_week',
+    name: 'Iron Week',
+    description: 'All dailies done 7 days in a row.',
+    rule: { kind: 'consecutive_all_dailies_done', days: 7 },
+  },
+  {
+    key: 'night_owl',
+    name: 'Night Owl',
+    description: 'Logs after 01:00 on 5 different days.',
+    rule: { kind: 'distinct_late_log_days', count: 5, cutoffHour: 1 },
+  },
+  {
+    key: 'marathon_mind',
+    name: 'Marathon Mind',
+    description: '300 focus hours total.',
+    rule: { kind: 'total_focus_hours', hours: 300 },
+  },
+  {
+    key: 'polymath',
+    name: 'Polymath',
+    description: 'Skill level 5 in skills under 4 different stats.',
+    rule: { kind: 'skill_level_under_n_stats', level: 5, stats: 4 },
+  },
+  { key: 'comeback', name: 'Comeback', description: 'Leave the Penalty Zone.', rule: { kind: 'left_penalty_zone' } },
+];
 
 export const STAT_NAMES: Record<StatCode, { name: string; sort: number }> = {
   STR: { name: 'Strength', sort: 0 },

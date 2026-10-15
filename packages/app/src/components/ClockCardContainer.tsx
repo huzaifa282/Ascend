@@ -71,7 +71,9 @@ export function ClockCardContainer() {
         autoStartBreaks={autoStartBreaks}
         onAutoStartBreaksChange={setAutoStartBreaks}
         onStop={stop}
-        onPause={state.phase === 'running' ? pause : resume}
+        onPlayPause={handlePlayPause}
+        isRunning={state.phase === 'running'}
+        isIdle={state.phase === 'idle'}
         onAddFive={addFiveMinutes}
         onFullScreen={() => {
           setModalOpen(false);

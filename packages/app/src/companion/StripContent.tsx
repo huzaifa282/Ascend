@@ -16,8 +16,9 @@ function openMain(route?: string): void {
  */
 export function StripContent() {
   const { data: profile } = useProfile();
-  const { state: timer } = useTimer();
+  const { state: timer, start } = useTimer();
   const { state: track, playPause, next } = useMusicPlayerRemote();
+  const timerIdle = timer.phase === 'idle';
 
   const elapsedMin = (timer.totalS - timer.leftS) / 60;
   const totalMin = timer.totalS / 60 || 25;
@@ -38,7 +39,9 @@ export function StripContent() {
         </button>
       )}
 
-      {timer.phase !== 'idle' && (
+      {timerIdle ? (
+        <IconButton icon="timer" aria-label="Start focus timer" onClick={() => void start('focus', 25)} />
+      ) : (
         <button type="button" onClick={() => openMain('/focus')} className="flex flex-col items-center flex-none">
           <span className="font-mono text-[10px] uppercase tracking-[.1em] text-accent">
             {timer.kind === 'break' ? 'BREAK' : 'FOCUS'}

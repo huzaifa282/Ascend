@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { EntryItemRow } from '@ascendant/db';
+import { newId, type EntryItemRow } from '@ascendant/db';
 import type { AcceptEntryItemResult } from '../services';
 import {
   acceptEntryItem as acceptEntryItemService,
@@ -11,12 +11,20 @@ import {
 } from '../services';
 import { useMomentsStore } from '../stores/useMomentsStore';
 
+// `add task: ...` / `task: ...` / `todo: ...` create a task directly, with no
+// LLM involved — so typing a plain task always works even with no model
+// connected (spec 6.1's offline queue is for everything else that genuinely
+// needs interpretation).
+const LOCAL_TASK_PATTERN = /^(?:add\s+task|task|todo)\s*:\s*(.+)$/i;
+
 export interface CommandBarState {
   value: string;
   status: 'idle' | 'interpreting' | 'needs_confirm' | 'queued' | 'error';
   entryId: string | null;
   items: EntryItemRow[];
   error?: string;
+  /** True only for the "no model connected" queued case — shows a link to Settings > Model. */
+  needsModelSetup?: boolean;
 }
 
 const INITIAL_STATE: CommandBarState = { value: '', status: 'idle', entryId: null, items: [] };
@@ -27,7 +35,11 @@ export function useCommandBar() {
   const queryClient = useQueryClient();
   const pushMoment = useMomentsStore((s) => s.push);
 
-  const setValue = useCallback((value: string) => setState((s) => ({ ...s, value })), []);
+  const setValue = useCallback(
+    (value: string) =>
+      setState((s) => (s.status === 'queued' ? { ...INITIAL_STATE, value } : { ...s, value })),
+    [],
+  );
 
   const pushLevelUpIfAny = useCallback(
     (result: AcceptEntryItemResult) => {
@@ -55,6 +67,38 @@ export function useCommandBar() {
   const submit = useCallback(async () => {
     const text = state.value.trim();
     if (!text) return;
+
+    const localTaskMatch = LOCAL_TASK_PATTERN.exec(text);
+    const title = localTaskMatch?.[1]?.trim();
+    if (title) {
+      const ctx = await createServiceContext();
+      const now = Date.now();
+      await ctx.repos.tasks.create({
+        id: newId(),
+        createdAt: now,
+        updatedAt: now,
+        title,
+        notes: null,
+        dueAt: null,
+        windowStart: now,
+        difficulty: 3,
+        estMinutes: null,
+        statWeights: { DIS: 1 },
+        reminderMinutes: null,
+        status: 'open',
+        completedAt: null,
+        rewardTier: null,
+        xpAwarded: null,
+        rescheduleCount: 0,
+        mainQuestId: null,
+        emergency: false,
+        expiresAt: null,
+      });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      setState({ ...INITIAL_STATE, status: 'queued', error: `Added task: "${title}".` });
+      return;
+    }
+
     setState((s) => ({ ...s, status: 'interpreting' }));
     const ctx = await createServiceContext();
     const now = Date.now();
@@ -64,11 +108,18 @@ export function useCommandBar() {
       const items = await ctx.repos.entryItems.listByEntry(result.entryId);
       setState({ value: '', status: 'needs_confirm', entryId: result.entryId, items });
     } else if (result.status === 'queued') {
-      setState({ ...INITIAL_STATE });
+      // No model is connected — the entry is saved (status 'queued' in the DB) rather
+      // than lost; say so instead of silently clearing the bar back to blank/idle.
+      setState({
+        ...INITIAL_STATE,
+        status: 'queued',
+        error: 'Saved — connect a model in Settings > Model to interpret it.',
+        needsModelSetup: true,
+      });
     } else {
       setState({ value: text, status: 'error', entryId: result.entryId, items: [], error: result.error });
     }
-  }, [state.value]);
+  }, [state.value, queryClient]);
 
   const acceptItem = useCallback(
     async (itemId: string) => {

@@ -7,7 +7,7 @@ import { useOpenTasks } from '../hooks/useTasks';
 /** Focus mode — spec 10.15. Full window, no sidebar or command bar; Esc exits. */
 export function Focus() {
   const navigate = useNavigate();
-  const { state, pause, resume, stop, addFiveMinutes } = useTimer();
+  const { state, start, pause, resume, stop, addFiveMinutes } = useTimer();
   const { data: openTasks } = useOpenTasks();
   const [doNotDisturb, setDoNotDisturb] = useState(true);
 
@@ -55,8 +55,10 @@ export function Focus() {
           <RoundButton
             icon={state.phase === 'running' ? 'pause' : 'play'}
             size={32}
-            aria-label={state.phase === 'running' ? 'Pause' : 'Resume'}
-            onClick={() => void (state.phase === 'running' ? pause() : resume())}
+            aria-label={state.phase === 'idle' ? 'Start' : state.phase === 'running' ? 'Pause' : 'Resume'}
+            onClick={() =>
+              void (state.phase === 'idle' ? start('focus', 25) : state.phase === 'running' ? pause() : resume())
+            }
           />
           <Button variant="default" onClick={() => void addFiveMinutes()}>
             +5 MIN

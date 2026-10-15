@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@ascendant/ui';
 import { createServiceContext } from '../../services';
-import { resolveRepos } from '../../hooks/useRepos';
-import type { HotkeySettings } from '../../settings/schema';
+import { useHotkeySettings } from '../../hooks/useHotkeySettings';
+import { formatAccelerator } from '../../lib/formatAccelerator';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -19,17 +19,6 @@ function comboFromEvent(e: KeyboardEvent): string | null {
   const keyName = key === ' ' ? 'Space' : key.length === 1 ? key.toUpperCase() : key;
   parts.push(keyName);
   return parts.length > 1 ? parts.join('+') : null;
-}
-
-function useHotkeySettings() {
-  return useQuery({
-    queryKey: ['hotkey', 'settings'],
-    queryFn: async () => {
-      const repos = await resolveRepos();
-      const row = await repos.settings.get();
-      return (row?.hotkey as HotkeySettings | undefined) ?? null;
-    },
-  });
 }
 
 /** Settings > Hotkey (spec 10.16, 11.3). Records a combo, then asks Rust to re-register it. */
@@ -75,7 +64,7 @@ export function HotkeyPanel() {
 
       <div className="flex items-center gap-3">
         <kbd className="font-mono text-[13px] border border-rule rounded-md px-3 py-2">
-          {recording ? 'Press a key combo…' : hotkey?.combo ?? 'CommandOrControl+Shift+Space'}
+          {recording ? 'Press a key combo…' : formatAccelerator(hotkey?.combo ?? 'CommandOrControl+Shift+Space')}
         </kbd>
         <Button variant="default" onClick={startRecording} disabled={recording || save.isPending}>
           {recording ? 'RECORDING…' : 'RECORD SHORTCUT'}

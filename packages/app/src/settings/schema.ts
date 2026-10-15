@@ -16,14 +16,29 @@ export const ModelProviderSchema = z.enum([
 ]);
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 
+export const ModelTestResultSchema = z.object({
+  ok: z.boolean(),
+  latencyMs: z.number(),
+  error: z.string().nullable(),
+  testedAt: z.number(),
+});
+export type ModelTestResultRecord = z.infer<typeof ModelTestResultSchema>;
+
 export const ModelSettingsSchema = z.object({
   provider: ModelProviderSchema.nullable(),
   model: z.string().nullable(),
   /** The key itself lives only in the OS keychain (spec 12.1) — never here. */
   hasKey: z.boolean(),
+  /** So Settings > Model can show the last Test connection result after a remount. */
+  lastTestResult: ModelTestResultSchema.nullable().default(null),
 });
 export type ModelSettings = z.infer<typeof ModelSettingsSchema>;
-export const DEFAULT_MODEL_SETTINGS: ModelSettings = { provider: null, model: null, hasKey: false };
+export const DEFAULT_MODEL_SETTINGS: ModelSettings = {
+  provider: null,
+  model: null,
+  hasKey: false,
+  lastTestResult: null,
+};
 
 // Voice capture is deferred in this build (docs/decisions.md); the schema
 // still exists so Settings > Voice has something to render, inert.

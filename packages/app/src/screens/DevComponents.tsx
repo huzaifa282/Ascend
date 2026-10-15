@@ -208,7 +208,9 @@ export function DevComponents() {
           autoStartBreaks={false}
           onAutoStartBreaksChange={() => {}}
           onStop={() => {}}
-          onPause={() => {}}
+          onPlayPause={() => {}}
+          isRunning={false}
+          isIdle={false}
           onAddFive={() => {}}
           onFullScreen={() => {}}
         />

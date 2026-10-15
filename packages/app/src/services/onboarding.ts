@@ -5,12 +5,14 @@
  * the end — so later steps (the model connection step reuses the ordinary
  * Settings > Model panel) have a real settings row to persist into.
  */
-import { newId } from '@ascendant/db';
+import { newId, runAtomic, schema } from '@ascendant/db';
 import { STAT_CODES, type StatCode } from '@ascendant/engine';
+import { eq } from 'drizzle-orm';
 import type { ServiceContext } from './context';
-import { STAT_NAMES, type SuggestedDaily } from '../onboarding/baselines';
+import { STAT_NAMES, TITLE_DEFS, type SuggestedDaily } from '../onboarding/baselines';
 import { DEFAULT_SETTINGS } from '../settings/schema';
 import { localDateString } from '../lib/localTime';
+import { buildStatEvent } from './ledger';
 
 function statValueFor(statXp: number, statScale: number): number {
   return Math.min(99, Math.floor(100 * (1 - Math.exp(-Math.max(0, statXp) / statScale))));
@@ -75,6 +77,19 @@ export async function bootstrapProfile(ctx: ServiceContext, now: number): Promis
     });
   }
 
+  await ctx.repos.titles.createMany(
+    TITLE_DEFS.map((def) => ({
+      id: newId(),
+      createdAt: now,
+      updatedAt: now,
+      key: def.key,
+      name: def.name,
+      description: def.description,
+      rule: def.rule,
+      earnedAt: null,
+    })),
+  );
+
   return profileId;
 }
 
@@ -83,15 +98,20 @@ export async function applyStatBaselines(
   statXpByCode: Partial<Record<StatCode, number>>,
   now: number,
 ): Promise<void> {
+  const writes: unknown[] = [];
   for (const [code, statXp] of Object.entries(statXpByCode) as [StatCode, number][]) {
+    if (statXp === 0) continue;
     const row = await ctx.repos.stats.getByCode(code);
     if (!row) continue;
-    await ctx.repos.stats.update(row.id, {
-      statXp,
-      value: statValueFor(statXp, ctx.ruleset.stats.statScale),
-      updatedAt: now,
-    });
+    writes.push(
+      buildStatEvent(ctx.db, { at: now, statCode: code, statXp, refType: 'onboarding' }),
+      ctx.db
+        .update(schema.stats)
+        .set({ statXp, value: statValueFor(statXp, ctx.ruleset.stats.statScale), updatedAt: now })
+        .where(eq(schema.stats.id, row.id)),
+    );
   }
+  if (writes.length > 0) await runAtomic(ctx.sql, writes as Parameters<typeof runAtomic>[1]);
 }
 
 export async function setProfileNameToneAndFinish(
