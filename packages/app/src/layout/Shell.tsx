@@ -62,7 +62,7 @@ export function Shell() {
             PENALTY ZONE / XP gain is halved until the recovery quest is complete.
           </div>
         )}
-        <main className="flex-1 overflow-y-auto px-6 py-6">
+        <main className="flex-1 overflow-y-auto px-6 py-6 [scrollbar-gutter:stable]">
           <Outlet />
         </main>
         {showPlayerBar && (

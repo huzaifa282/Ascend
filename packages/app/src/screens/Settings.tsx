@@ -88,13 +88,13 @@ export function Settings() {
                     aria-pressed={accent === a.id}
                     aria-label={`${a.label} accent`}
                     className={clsx(
-                      'w-touch h-touch rounded-pill border-2 transition-colors duration-base',
+                      'w-touch h-touch flex items-center justify-center rounded-pill border-2 transition-colors duration-base',
                       accent === a.id ? 'border-text' : 'border-transparent',
                     )}
                     style={{ backgroundColor: 'transparent' }}
                   >
                     <span
-                      className="block w-6 h-6 rounded-pill mx-auto"
+                      className="block w-6 h-6 rounded-pill"
                       data-theme={a.id}
                       style={{ backgroundColor: 'var(--accent)' }}
                     />
@@ -112,7 +112,7 @@ export function Settings() {
             <h1 className="font-display text-[22px] font-bold a-heading">
               {SECTIONS.find((s) => s.id === section)?.label ?? section}
             </h1>
-            <p className="text-text-muted">Built out further in a later phase.</p>
+            <p className="text-text-muted">Coming soon.</p>
           </div>
         )}
       </div>

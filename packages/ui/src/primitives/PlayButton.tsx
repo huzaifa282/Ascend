@@ -20,13 +20,15 @@ const SIZES: Record<PlayButtonSize, { box: number; icon: number }> = {
 
 /** --text fill, --bg icon, hover accent. Sizes 44/52/64/80 (spec 9.1). */
 export const PlayButton = forwardRef<HTMLButtonElement, PlayButtonProps>(function PlayButton(
-  { playing, size = 'md', className, style, ...rest },
+  { playing, size = 'md', className, style, title, 'aria-label': ariaLabel, ...rest },
   ref,
 ) {
   const { box, icon } = SIZES[size];
   return (
     <button
       ref={ref}
+      aria-label={ariaLabel}
+      title={title ?? ariaLabel}
       className={clsx(
         'inline-flex items-center justify-center flex-none rounded-pill',
         'bg-text text-bg hover:bg-accent transition-colors duration-base active:scale-[.98]',

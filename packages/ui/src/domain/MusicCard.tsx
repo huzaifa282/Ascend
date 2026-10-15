@@ -32,11 +32,13 @@ export function MusicCard(props: MusicCardProps) {
     return (
       <div className="rounded-lg border border-rule bg-bg p-4 h-[88px] flex items-center gap-3">
         <div className="w-12 h-12 rounded-md bg-surface flex items-center justify-center flex-none">
-          <Icon name="note" size={20} className="text-text-muted" />
+          <Icon name="music" size={20} className="text-text-muted" />
         </div>
-        <div className="flex flex-col gap-1 flex-1">
-          <span className="font-display text-[14px] text-text-muted">Nothing playing</span>
-          <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-text-muted">START ANY PLAYER</span>
+        <div className="flex flex-col gap-1 flex-1 min-w-0">
+          <span className="font-display text-[14px] text-text-muted truncate">Nothing playing</span>
+          <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-text-muted truncate">
+            START ANY PLAYER
+          </span>
         </div>
         {props.onOpenFolder && (
           <Button variant="default" onClick={props.onOpenFolder}>

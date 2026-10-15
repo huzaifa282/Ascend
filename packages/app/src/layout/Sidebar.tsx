@@ -14,7 +14,7 @@ const NAV_LEVELING_ON: NavItem[] = [
   { to: '/today', label: 'Today', icon: 'home' },
   { to: '/status', label: 'Status', icon: 'gauge' },
   { to: '/quests', label: 'Quests', icon: 'list' },
-  { to: '/music', label: 'Music', icon: 'note' },
+  { to: '/music', label: 'Music', icon: 'music' },
   { to: '/history', label: 'History', icon: 'cal' },
   { to: '/settings', label: 'Settings', icon: 'gear' },
 ];
@@ -23,7 +23,7 @@ const NAV_LEVELING_ON: NavItem[] = [
 const NAV_LEVELING_OFF: NavItem[] = [
   { to: '/today', label: 'Today', icon: 'home' },
   { to: '/quests', label: 'Tasks', icon: 'list' },
-  { to: '/music', label: 'Music', icon: 'note' },
+  { to: '/music', label: 'Music', icon: 'music' },
   { to: '/history', label: 'History', icon: 'cal' },
   { to: '/settings', label: 'Settings', icon: 'gear' },
 ];

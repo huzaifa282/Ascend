@@ -24,15 +24,13 @@ module.exports = {
         display: ['var(--font-display)'],
         mono: ['var(--font-mono)'],
       },
+      // Only non-numeric keys here: `half` and `touch` are additions, but a
+      // bare numeral (`1`-`7`) collides with Tailwind's own default spacing
+      // scale (e.g. `h-6` normally means 1.5rem/24px) and silently replaces
+      // it project-wide for every component that uses that utility assuming
+      // the default — which is every component here. See docs/decisions.md.
       spacing: {
         half: 'var(--space-half)',
-        1: 'var(--space-1)',
-        2: 'var(--space-2)',
-        3: 'var(--space-3)',
-        4: 'var(--space-4)',
-        5: 'var(--space-5)',
-        6: 'var(--space-6)',
-        7: 'var(--space-7)',
         touch: 'var(--touch-min)',
       },
       borderRadius: {

@@ -12,12 +12,14 @@ export interface RoundButtonProps extends ButtonHTMLAttributes<HTMLButtonElement
 
 /** `.a-cbtn` — 44x44 circle, text-muted, hover surface fill (spec 9.1). */
 export const RoundButton = forwardRef<HTMLButtonElement, RoundButtonProps>(function RoundButton(
-  { icon, size = 20, className, ...rest },
+  { icon, size = 20, className, title, 'aria-label': ariaLabel, ...rest },
   ref,
 ) {
   return (
     <button
       ref={ref}
+      aria-label={ariaLabel}
+      title={title ?? ariaLabel}
       className={clsx(
         'a-cbtn inline-flex items-center justify-center w-touch h-touch min-w-touch min-h-touch flex-none rounded-pill',
         'text-text-muted hover:text-text hover:bg-surface transition-colors duration-base',
