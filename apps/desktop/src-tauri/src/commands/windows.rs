@@ -31,20 +31,21 @@ pub fn show_widget_window(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-pub fn show_strip_window(app: &AppHandle) -> Result<(), String> {
-    let strip = app.get_webview_window("strip").ok_or("strip window missing")?;
-    strip.show().map_err(|e| e.to_string())?;
-    strip.set_focus().map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 /// Shows whichever of widget/strip the user's `defaultSize` setting picks
-/// (spec 11.5's "Widget settings: ... default size").
+/// (spec 11.5's "Widget settings: ... default size") and explicitly hides
+/// the other — a stale restored `visible: true` on the one not chosen
+/// would otherwise show both at once.
 pub fn show_default_companion_window(app: &AppHandle, compact: bool) -> Result<(), String> {
+    let widget = app.get_webview_window("widget").ok_or("widget window missing")?;
+    let strip = app.get_webview_window("strip").ok_or("strip window missing")?;
     if compact {
-        show_strip_window(app)
+        let _ = widget.hide();
+        strip.show().map_err(|e| e.to_string())?;
+        strip.set_focus().map_err(|e| e.to_string())
     } else {
-        show_widget_window(app)
+        let _ = strip.hide();
+        widget.show().map_err(|e| e.to_string())?;
+        widget.set_focus().map_err(|e| e.to_string())
     }
 }
 

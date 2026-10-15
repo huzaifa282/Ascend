@@ -63,7 +63,16 @@ fn saved_hotkey_combo(conn: &rusqlite::Connection) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                // `command` is a transient, hotkey-triggered popup — it has no
+                // position/size worth remembering (it re-centres itself every
+                // time it's shown) and must never auto-restore a stale
+                // "visible" flag from a previous run, which is exactly what
+                // caused it to reappear, undismissable, on every launch.
+                .skip_initial_state("command")
+                .build(),
+        )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -116,7 +125,17 @@ pub fn run() {
             tray::build_tray(app.handle())?;
             hotkey::register_hotkey(app.handle(), &hotkey_combo);
 
-            if !launched_widget_only() {
+            // Belt-and-suspenders alongside `skip_initial_state("command")`
+            // above: `command` always starts hidden, full stop.
+            if let Some(command) = app.get_webview_window("command") {
+                let _ = command.hide();
+            }
+
+            if launched_widget_only() {
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.hide();
+                }
+            } else {
                 let _ = open_main_window(app.handle(), None);
             }
             let _ = show_default_companion_window(app.handle(), compact);

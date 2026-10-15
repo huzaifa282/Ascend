@@ -420,3 +420,32 @@ lower priority than the screens and services built this session). All
 three are straightforward CRUD against existing schema/engine surface
 (`MusicSettings`-style patterns apply directly); none require new
 services or schema changes.
+
+## 2026-10-15 — Fix: command window auto-showing, undismissable, on every launch
+
+First real `pnpm dev` run surfaced a bug `cargo check`/`vite build` can't
+catch: the companion widget and the floating hotkey command window both
+appeared on launch, the command window sat on top of everything
+(`alwaysOnTop`, no decorations, `skipTaskbar`), and had no way to be moved
+or closed. Confirmed via `%APPDATA%\dev.ascendant.app\.window-state.json`:
+`tauri-plugin-window-state` had persisted `command.visible: true` from
+whenever the hotkey was last used, and nothing in `lib.rs`/`commands::windows`
+ever explicitly hid `command` at startup — it was only ever shown, never
+hidden, so the plugin's restore was the only thing setting its visibility
+on launch.
+
+Fixed three ways: `tauri_plugin_window_state::Builder` now calls
+`.skip_initial_state("command")` (the plugin's own mechanism for "never
+restore this window's state on startup," confirmed in the vendored source
+at `tauri-plugin-window-state-2.5.0/src/lib.rs`) so a stale `visible: true`
+can never resurface; `lib.rs`'s `setup()` also explicitly hides `command`
+(and hides `main` when launched with `--widget`) as a second, independent
+guarantee; and `show_default_companion_window` now explicitly hides
+whichever of widget/strip wasn't chosen, closing the identical latent bug
+for that pair (a stale `strip.visible: true` would previously have shown
+both at once). `CommandContent.tsx` also gained a drag region and a close
+button — previously its only way to dismiss was an undocumented Escape
+key, which is a bad fallback on its own regardless of the root-cause fix.
+
+The user's existing `.window-state.json` needs no manual edit — the fix
+makes its stale `command` entry permanently unread.
