@@ -371,3 +371,37 @@ startup-time registration before. Startup now reads
 back to the default when there's no settings row yet.
 
 **About**: static version/license/links — nothing to wire.
+
+## 2026-10-15 — Phase 7 (part 6): toasts and Settings > Notifications
+
+A toast store + `<ToastStack>` (reusing the `Notification` UI component,
+bottom-right, 5s auto-dismiss, click-to-navigate) now fires for quest
+complete (`useCompleteTask`/`useCompleteDaily`) and HP-low (a `Shell`-level
+watcher comparing consecutive `useProfile()` reads against
+`ruleset.hp.dangerThreshold`, firing once per crossing rather than every
+render). Settings > Notifications has real per-type toggles and quiet
+hours, persisted to `settings.notifications`/`settings.quietHours`.
+
+**Deliberately not built** (documented rather than silently skipped):
+- The toggles and quiet hours don't gate anything yet — the toast
+  call sites push unconditionally. Default values are all "on" per the
+  schema, so this matches default behavior; it just means turning a type
+  off in Settings currently has no effect.
+- No OS-level (`tauri-plugin-notification`) notifications for deadline
+  warnings, morning briefing, or session complete — these need a
+  time-based poller (checking open tasks' due times, a once-after-05:00
+  check) this session didn't build. The hotkey-conflict notification from
+  Phase 6 remains the only real OS notification in the app.
+- No "stat up" or "rank trial unlocked" toasts — both need extra
+  before/after plumbing through call sites that don't currently surface
+  it (per-stat deltas for the former, the `trialUnlocked` flag
+  `applyXpToProfile` already computes but doesn't return to callers, for
+  the latter).
+- No actionable notification buttons (Mark done, Snooze, Reschedule) —
+  the `Notification` component supports an `actions` prop and could carry
+  them, but nothing calls it with any yet.
+
+This closes out the phases 0-7 scope agreed at the start of this build.
+Remaining known gaps across the whole session are catalogued here in
+docs/decisions.md rather than silently dropped; see the "Deferred to a
+later pass" and similar notes throughout this file.

@@ -3,6 +3,7 @@ import { createServiceContext, completeDaily as completeDailyService } from '../
 import { localDateString } from '../lib/localTime';
 import { resolveRepos } from './useRepos';
 import { useMomentsStore } from '../stores/useMomentsStore';
+import { useToastStore } from '../stores/useToastStore';
 
 export function useActiveDailies() {
   return useQuery({
@@ -28,12 +29,18 @@ export function useTodaysDailyCompletions(timezone: string) {
 export function useCompleteDaily() {
   const queryClient = useQueryClient();
   const pushMoment = useMomentsStore((s) => s.push);
+  const pushToast = useToastStore((s) => s.push);
   return useMutation({
     mutationFn: async (dailyId: string) => {
       const ctx = await createServiceContext();
-      return completeDailyService(ctx, dailyId, Date.now());
+      const daily = await ctx.repos.dailies.getById(dailyId);
+      const result = await completeDailyService(ctx, dailyId, Date.now());
+      return { ...result, title: daily?.title ?? 'Daily' };
     },
     onSuccess: (result) => {
+      if (!result.alreadyDone) {
+        pushToast({ tag: 'QUEST', title: `Quest complete: ${result.title}`, meta: `+${result.xp} XP` });
+      }
       if (result.levelsGained > 0) {
         pushMoment({
           kind: 'levelUp',

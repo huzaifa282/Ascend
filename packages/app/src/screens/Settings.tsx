@@ -5,6 +5,7 @@ import { useUiStore } from '../stores/useUiStore';
 import { ModelPanel } from './settings/ModelPanel';
 import { MusicFocusPanel } from './settings/MusicFocusPanel';
 import { WidgetPanel } from './settings/WidgetPanel';
+import { NotificationsPanel } from './settings/NotificationsPanel';
 import { DataPanel } from './settings/DataPanel';
 import { DataSharingPanel } from './settings/DataSharingPanel';
 import { HotkeyPanel } from './settings/HotkeyPanel';
@@ -63,6 +64,8 @@ export function Settings() {
           <MusicFocusPanel />
         ) : section === 'widget' ? (
           <WidgetPanel />
+        ) : section === 'notifications' ? (
+          <NotificationsPanel />
         ) : section === 'data' ? (
           <DataPanel />
         ) : section === 'sharing' ? (

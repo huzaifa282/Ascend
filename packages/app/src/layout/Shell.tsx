@@ -3,9 +3,11 @@ import { Sidebar } from './Sidebar';
 import { CommandBarContainer } from '../components/CommandBarContainer';
 import { PlayerBarSlot } from '../components/PlayerBarSlot';
 import { MomentsOverlay } from '../components/MomentsOverlay';
+import { ToastStack } from '../components/ToastStack';
 import { useDayCloseOnMount } from '../hooks/useDayCloseOnMount';
 import { usePenaltyZoneStatus } from '../hooks/usePenaltyZone';
 import { useProfile } from '../hooks/useProfile';
+import { useHpLowToast } from '../hooks/useHpLowToast';
 import { clsx } from '@ascendant/ui';
 
 const NO_PLAYER_BAR_ROUTES = ['/today', '/music', '/focus'];
@@ -24,6 +26,7 @@ export function Shell() {
   const { data: profile, isLoading: profileLoading } = useProfile();
 
   useDayCloseOnMount();
+  useHpLowToast();
 
   // Spec 10.1: a brand-new install has no profile row at all — send it to
   // Awakening instead of rendering every screen's "if (!profile) return
@@ -38,6 +41,7 @@ export function Shell() {
       <div className="h-screen w-screen bg-bg text-text">
         <Outlet />
         <MomentsOverlay />
+        <ToastStack />
       </div>
     );
   }
@@ -45,6 +49,7 @@ export function Shell() {
   return (
     <div className={clsx('h-screen w-screen bg-bg text-text flex', inPenaltyZone && 'border-2 border-danger')}>
       <MomentsOverlay />
+      <ToastStack />
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <header
