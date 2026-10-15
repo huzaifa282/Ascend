@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "widget",
+  "description": "Permissions for the companion widget and compact strip windows.",
+  "windows": ["widget", "strip"],
+  "permissions": ["core:default", "window-state:default"]
+}

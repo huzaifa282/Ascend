@@ -4,6 +4,7 @@ import type { AccentTheme } from '../stores/useUiStore';
 import { useUiStore } from '../stores/useUiStore';
 import { ModelPanel } from './settings/ModelPanel';
 import { MusicFocusPanel } from './settings/MusicFocusPanel';
+import { WidgetPanel } from './settings/WidgetPanel';
 
 const SECTIONS = [
   { id: 'model', label: 'Model' },
@@ -56,6 +57,8 @@ export function Settings() {
           <ModelPanel />
         ) : section === 'music' ? (
           <MusicFocusPanel />
+        ) : section === 'widget' ? (
+          <WidgetPanel />
         ) : section === 'appearance' ? (
           <div className="flex flex-col gap-6">
             <h1 className="font-display text-[22px] font-bold a-heading">Appearance</h1>

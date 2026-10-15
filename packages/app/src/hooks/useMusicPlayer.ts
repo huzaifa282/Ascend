@@ -4,10 +4,21 @@
  * ride the element's own `timeupdate` event rather than a custom rAF loop,
  * and are skipped while the tab/window isn't visible (plan decision #6 —
  * no work done for an idle, hidden player).
+ *
+ * The widget and strip are separate webviews (separate JS heaps), and only
+ * one `<audio>` element should ever actually be playing — the widget's,
+ * since it stays alive (just hidden) when collapsed to the strip. This hook
+ * is that single real player: it broadcasts `music:state` (track + playing,
+ * spec 11.5's "track, play/pause") so the strip's read-only
+ * `useMusicPlayerRemote` can mirror it, and it listens for `music:command`
+ * so the strip's buttons can drive this same player.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { emit, listen } from '@tauri-apps/api/event';
 import type { MusicTrackRow } from '@ascendant/db';
+import { MUSIC_COMMAND_EVENT, MUSIC_STATE_EVENT } from './musicBus';
+import type { MusicCommandPayload, MusicStatePayload } from './musicBus';
 
 export interface MusicPlayerState {
   queue: MusicTrackRow[];
@@ -116,6 +127,31 @@ export function useMusicPlayer() {
     repeatingRef.current = !repeatingRef.current;
     setState((s) => ({ ...s, repeating: repeatingRef.current }));
   }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    const track = state.currentIndex >= 0 ? state.queue[state.currentIndex] : undefined;
+    const payload: MusicStatePayload = {
+      title: track?.title ?? null,
+      artist: track?.artist ?? null,
+      artPath: track?.artPath ?? null,
+      playing: state.playing,
+    };
+    void emit(MUSIC_STATE_EVENT, payload);
+  }, [state.currentIndex, state.playing, state.queue]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    void listen<MusicCommandPayload>(MUSIC_COMMAND_EVENT, (event) => {
+      if (event.payload.action === 'playPause') playPause();
+      else if (event.payload.action === 'next') next();
+      else if (event.payload.action === 'prev') prev();
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, [playPause, next, prev]);
 
   useEffect(() => {
     const audio = new Audio();

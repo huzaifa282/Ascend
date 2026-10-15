@@ -10,3 +10,8 @@ export type { CommandBarState } from './useCommandBar';
 export { useAskSystem, useChatMessages } from './useAskSystem';
 export { useTimer } from './useTimer';
 export type { TimerKind, TimerPhase, TimerState } from './useTimer';
+export { useMusicTracks, useMusicFolderSetting, useChooseAndScanMusicFolder, useRescanMusicFolder } from './useMusicLibrary';
+export { useMusicPlayer } from './useMusicPlayer';
+export type { MusicPlayerState } from './useMusicPlayer';
+export { useMusicPlayerRemote } from './useMusicPlayerRemote';
+export { useWidgetSettings, usePatchWidgetSettings } from './useWidgetSettings';

@@ -21,8 +21,50 @@
         "minHeight": 640,
         "resizable": true,
         "decorations": true,
-        "visible": true,
+        "visible": false,
         "dragDropEnabled": true
+      },
+      {
+        "label": "widget",
+        "url": "widget.html",
+        "title": "Ascendant",
+        "width": 350,
+        "height": 640,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
+      },
+      {
+        "label": "strip",
+        "url": "strip.html",
+        "title": "Ascendant",
+        "width": 560,
+        "height": 76,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
+      },
+      {
+        "label": "command",
+        "url": "command.html",
+        "title": "Ascendant",
+        "width": 560,
+        "height": 300,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
       }
     ],
     "security": {

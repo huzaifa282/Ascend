@@ -1,4 +1,6 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { listen } from '@tauri-apps/api/event';
 import { Shell } from '../layout/Shell';
 import { Today } from '../screens/Today';
 import { Status } from '../screens/Status';
@@ -11,10 +13,28 @@ import { Music } from '../screens/Music';
 import { Placeholder } from '../screens/Placeholder';
 import { DevComponents } from '../screens/DevComponents';
 
+interface NavigatePayload {
+  route: string;
+}
+
+/** Listens for Rust's `navigate` event (spec 7.1: the widget/tray/hotkey ask `main` to go somewhere via `open_main`). */
+function NavigateListener() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<NavigatePayload>('navigate', (event) => navigate(event.payload.route)).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, [navigate]);
+  return null;
+}
+
 /** Routes (main window) — spec 7.2. */
 export function AppRouter() {
   return (
     <BrowserRouter>
+      <NavigateListener />
       <Routes>
         <Route element={<Shell />}>
           <Route index element={<Navigate to="/today" replace />} />

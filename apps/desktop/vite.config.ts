@@ -8,9 +8,12 @@ const port = 1420;
 export default defineConfig({
   plugins: [react()],
   // Multi-page build: one light entry per window (spec section 7.1, decision #1).
-  // main = full app (router, data layer, LLM pipeline).
-  // widget / strip = slim companion surfaces, no router, no LLM pipeline.
-  // command = floating hotkey capture window.
+  // main = full app (router + every screen + the LLM pipeline).
+  // widget / command host a command bar too (so they do pull in the LLM
+  // pipeline), but never the router or the other screens, since they import
+  // `@ascendant/app/companion/*` directly instead of the `App`-exporting
+  // top-level barrel (see that barrel's own comment, and docs/decisions.md).
+  // strip has no command bar and stays by far the lightest of the three.
   build: {
     rollupOptions: {
       input: {
@@ -36,6 +39,11 @@ export default defineConfig({
       { find: /^@ascendant\/llm$/, replacement: path.resolve(__dirname, '../../packages/llm/src') },
       { find: /^@ascendant\/ui$/, replacement: path.resolve(__dirname, '../../packages/ui/src') },
       { find: /^@ascendant\/app$/, replacement: path.resolve(__dirname, '../../packages/app/src') },
+      // Prefix alias (deliberately not exact-match): lets the widget/strip/
+      // command entries reach the companion root components directly,
+      // bypassing the `@ascendant/app` barrel above (which also exports the
+      // full `App`, router and all).
+      { find: /^@ascendant\/app\/companion\//, replacement: `${path.resolve(__dirname, '../../packages/app/src/companion')}/` },
       { find: /^@ascendant\/seed$/, replacement: path.resolve(__dirname, '../../packages/seed/src') },
     ],
   },

@@ -6,21 +6,46 @@
 //! adds the focus timer state machine (`timer`, spec 11.2), the music
 //! folder scanner (`commands::music_folder`, spec 11.1), and the dialog/fs
 //! plugins (folder picking + serving audio files to the built-in player via
-//! the asset protocol). Later phases add media, voice, taskbar and windows
-//! commands as the spec's platform features (section 11) come online.
+//! the asset protocol). Phase 6 adds the companion widget/strip/command
+//! windows (`commands::windows`, `tray`, `hotkey`, spec 7.1/11.3/11.5).
 
 mod commands;
+mod hotkey;
 mod timer;
+mod tray;
 
 use commands::db::{db_batch_atomic, db_execute, db_select, init_db, AppDb};
 use commands::keychain::{keychain_delete, keychain_get, keychain_has, keychain_set};
 use commands::music_folder::scan_music_folder;
+use commands::windows::{
+    is_autostart_enabled, open_main, open_main_window, set_autostart, show_default_companion_window,
+    show_widget, toggle_companion_size,
+};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
+use tauri_plugin_autostart::MacosLauncher;
 use timer::{
     spawn_tick_loop, timer_add_five_minutes, timer_get_state, timer_pause, timer_resume,
     timer_start, timer_stop, TimerManager, TimerState,
 };
+
+/// `--widget` (passed by autostart) launches straight into the companion
+/// widget, leaving `main` hidden until the user opens it (spec 7.1).
+fn launched_widget_only() -> bool {
+    std::env::args().any(|arg| arg == "--widget")
+}
+
+/// Reads `settings.widget.defaultSize` directly (ad-hoc, not through the
+/// typed Zod schema that only exists on the JS side) to decide whether to
+/// show the widget or the strip at startup (spec 11.5).
+fn default_companion_is_compact(conn: &rusqlite::Connection) -> bool {
+    let json: rusqlite::Result<String> =
+        conn.query_row("SELECT widget FROM settings LIMIT 1", [], |row| row.get(0));
+    json.ok()
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
+        .and_then(|v| v.get("defaultSize").and_then(|s| s.as_str().map(|s| s == "compact")))
+        .unwrap_or(false)
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,6 +54,12 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--widget"]),
+        ))
         .invoke_handler(tauri::generate_handler![
             db_select,
             db_execute,
@@ -44,12 +75,37 @@ pub fn run() {
             timer_add_five_minutes,
             timer_get_state,
             scan_music_folder,
+            open_main,
+            show_widget,
+            toggle_companion_size,
+            set_autostart,
+            is_autostart_enabled,
         ])
+        .on_window_event(|window, event| {
+            // Spec 7.1: closing main hides it to the tray; the companion
+            // widget/strip and the Rust timer keep running regardless.
+            if window.label() == "main" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             let conn = init_db(app.handle()).expect("failed to open/migrate the database");
+            let compact = default_companion_is_compact(&conn);
             app.manage(AppDb(Mutex::new(conn)));
             app.manage(TimerManager(Mutex::new(TimerState::default())));
             spawn_tick_loop(app.handle().clone());
+
+            tray::build_tray(app.handle())?;
+            hotkey::register_hotkey(app.handle());
+
+            if !launched_widget_only() {
+                let _ = open_main_window(app.handle(), None);
+            }
+            let _ = show_default_companion_window(app.handle(), compact);
+
             Ok(())
         })
         .run(tauri::generate_context!())

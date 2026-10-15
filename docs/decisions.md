@@ -173,3 +173,57 @@ built-in `<audio>`-element player (also spec 11.1) ship now — fully
 exercised through `cargo check`/`vite build` and manual testing once the
 user runs the app. `MusicSettings.systemMediaEnabled` stays in the schema,
 inert, mirroring `VoiceSettings`'s existing pattern for a deferred feature.
+
+## 2026-10-15 — Phase 6: companion windows, cross-window music bus, taskbar buttons deferred
+
+Widget, strip and command are separate webviews (separate JS heaps) declared
+statically in `tauri.conf.json` with `visible: false`, then shown from Rust
+in `setup()` based on CLI args (`--widget`, passed by autostart) and the
+user's `widget.defaultSize` setting (read with a raw, ad-hoc `rusqlite`
+query in `lib.rs` — not worth a typed Rust mirror of the JS Zod schema for
+one field). `commands::windows` centralises `open_main`/`show_widget`/
+`toggle_companion_size` (collapse<->expand swaps the two at the same
+top-left corner) so both the tray and JS `invoke()` share one
+implementation. Closing `main` hides it instead of destroying it
+(`on_window_event`), matching spec 7.1; the Rust timer and tray keep running
+either way.
+
+**Cross-window music sync.** The built-in `<audio>` player
+(`useMusicPlayer`) only truly lives in the widget window, since the widget
+is merely hidden (not destroyed) when collapsed to the strip — its audio
+keeps playing. Giving the strip its own independent `useMusicPlayer`
+instance would silently desync (two unrelated `Audio()` elements). Instead
+the widget's player broadcasts `music:state` (track + playing) over Tauri's
+event bus and listens for `music:command`; the strip's `useMusicPlayerRemote`
+is a thin mirror that only sends commands and displays the last broadcast
+state — it never touches audio directly. The command window has no such
+problem since it has no transport controls of its own.
+
+**`@ascendant/app/companion/*` import boundary.** The widget/strip/command
+entries import the companion root components through a dedicated Vite
+alias + tsconfig `paths` entry pointing straight at
+`packages/app/src/companion/`, not through the package's main barrel
+(`index.ts`), which also exports the full `App` (router + every screen).
+Routing through the barrel once collapsed all four entries' bundles into
+one shared ~550KB chunk (confirmed by an actual `vite build` run) because
+Rollup couldn't prove `App`'s module-level `QueryClient` side effect was
+unreachable from the shared barrel file. Bypassing the barrel restored
+proper per-entry code-splitting (confirmed by re-running the build).
+
+**Deferred to a later pass**, each a real gap, not an oversight:
+- **Taskbar thumbnail buttons** (`ITaskbarList3` via the `windows` crate):
+  genuine COM/HWND-subclassing work this environment can't click-test: a
+  wrong button state or a missed `WM_COMMAND` just silently does nothing,
+  with no way to notice here. Lower priority than the window/tray/hotkey
+  work that makes the companion usable at all.
+- **Global hotkey conflict UX**: a failed registration shows a system
+  notification (spec's exact wording) but there's no in-app indicator in
+  Settings > Hotkey showing current registration status yet.
+- **Command window's "closes on Enter" exact behavior**: implemented as
+  "stays open through interpreting/confirm, Escape hides it" instead of
+  spec's literal "Enter submits and the window closes" — simpler to reason
+  about without losing the confirm card, but not a byte-for-byte match.
+- Manual GUI verification (dragging, collapse/expand visually, the hotkey
+  from another app, tray menu clicks, autostart actually relaunching into
+  `--widget`) is entirely unverified — only `cargo check`, typecheck, lint,
+  the Vitest suite and `vite build` ran in this environment.

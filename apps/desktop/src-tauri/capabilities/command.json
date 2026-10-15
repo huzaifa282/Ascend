@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "command-window",
+  "description": "Permissions for the floating hotkey quick-log window.",
+  "windows": ["command"],
+  "permissions": [
+    "core:default",
+    "window-state:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.openai.com/*" },
+        { "url": "https://api.anthropic.com/*" },
+        { "url": "https://generativelanguage.googleapis.com/*" },
+        { "url": "https://openrouter.ai/*" },
+        { "url": "http://127.0.0.1:11434/*" },
+        { "url": "http://127.0.0.1:1234/*" }
+      ]
+    }
+  ]
+}

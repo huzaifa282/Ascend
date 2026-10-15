@@ -1,0 +1,130 @@
+import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { xpNeeded, DEFAULT_RULESET } from '@ascendant/engine';
+import { Countdown, Dial, HpSegments, IconButton, LevelChip, PlayButton, QuestRow } from '@ascendant/ui';
+import { useOpenTasks, useProfile, usePatchWidgetSettings, useTimer, useWidgetSettings } from '../hooks';
+import { CommandBarContainer } from '../components/CommandBarContainer';
+import { MusicCardContainer } from '../components/MusicCardContainer';
+
+function openMain(route?: string): void {
+  void invoke('open_main', { route });
+}
+
+/**
+ * The companion widget (350x640, spec 11.5): title row, level row -> Status,
+ * timer row -> Focus mode, player, next deadline + one quest, command bar.
+ * No router here — every "open" action asks Rust to show/focus `main` and
+ * navigate it, rather than rendering a route locally.
+ */
+export function WidgetContent() {
+  const { data: profile } = useProfile();
+  const { data: openTasks } = useOpenTasks();
+  const { data: widgetSettings } = useWidgetSettings();
+  const patchWidgetSettings = usePatchWidgetSettings();
+  const { state: timer, pause, resume, stop, addFiveMinutes } = useTimer();
+  const [pinned, setPinned] = useState(true);
+
+  useEffect(() => {
+    if (widgetSettings) setPinned(widgetSettings.alwaysOnTop);
+  }, [widgetSettings]);
+
+  useEffect(() => {
+    void getCurrentWindow().setAlwaysOnTop(pinned);
+  }, [pinned]);
+
+  const nextTask = (openTasks ?? [])
+    .filter((t) => t.dueAt != null)
+    .sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity))[0];
+
+  const levelingEnabled = profile?.levelingEnabled ?? true;
+  const elapsedMin = (timer.totalS - timer.leftS) / 60;
+  const totalMin = timer.totalS / 60 || 25;
+  const xpSoFar = Math.round(elapsedMin); // 1 XP/min placeholder until credited; the real total lands on timer:done.
+  const timerIdle = timer.phase === 'idle';
+
+  return (
+    <div
+      className="h-screen w-screen flex flex-col bg-bg border border-rule rounded-lg overflow-hidden text-text"
+      style={{ opacity: (widgetSettings?.opacity ?? 100) / 100 }}
+    >
+      <div data-tauri-drag-region className="h-10 flex items-center justify-between px-3 flex-none cursor-move">
+        <span className="font-mono text-[11px] uppercase tracking-[.12em] text-text-muted">ASCENDANT</span>
+        <div className="flex items-center gap-1">
+          <IconButton icon="ext" aria-label="Open" size={16} onClick={() => openMain('/today')} />
+          <IconButton
+            icon="pin"
+            aria-label={pinned ? 'Unpin from top' : 'Pin to top'}
+            size={16}
+            className={pinned ? 'text-accent' : undefined}
+            onClick={() => {
+              setPinned((p) => !p);
+              patchWidgetSettings.mutate({ alwaysOnTop: !pinned });
+            }}
+          />
+          <IconButton icon="collapse" aria-label="Collapse" size={16} onClick={() => void invoke('toggle_companion_size')} />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 px-4 pb-4 overflow-y-auto flex-1">
+        {profile &&
+          (levelingEnabled ? (
+            <div className="flex items-center justify-between gap-2">
+              <LevelChip
+                level={profile.level}
+                rank={profile.rank}
+                xpIntoLevel={profile.xpIntoLevel}
+                xpNeeded={xpNeeded(profile.level, DEFAULT_RULESET)}
+                onClick={() => openMain('/status')}
+              />
+              <HpSegments hp={profile.hp} small />
+            </div>
+          ) : (
+            <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">FOCUSED TODAY</span>
+          ))}
+
+        <button type="button" onClick={() => openMain('/focus')} className="flex flex-col items-center gap-2">
+          <Dial size={116} elapsedMin={elapsedMin} totalMin={totalMin} onBreak={timer.kind === 'break'} />
+          <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-text-muted truncate max-w-full">
+            {timerIdle ? 'NOTHING RUNNING' : `WORKING ON ${timer.taskRef ?? 'FOCUS'}`}
+          </span>
+          {!timerIdle && (
+            <span className="font-mono text-[11px] text-accent tabular-nums">+{xpSoFar} XP SO FAR</span>
+          )}
+        </button>
+
+        {!timerIdle && (
+          <div
+            className="flex items-center justify-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IconButton icon="stop" aria-label="Stop" onClick={() => void stop()} />
+            <PlayButton
+              playing={timer.phase === 'running'}
+              onClick={() => void (timer.phase === 'running' ? pause() : resume())}
+              aria-label={timer.phase === 'running' ? 'Pause' : 'Resume'}
+              size="small"
+            />
+            <IconButton icon="plus" aria-label="Add 5 minutes" onClick={() => void addFiveMinutes()} />
+          </div>
+        )}
+
+        <MusicCardContainer />
+
+        {nextTask && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between px-1">
+              <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-text-muted">Next deadline</span>
+              <Countdown remainingMs={(nextTask.dueAt ?? 0) - Date.now()} size={16} />
+            </div>
+            <QuestRow title={nextTask.title} />
+          </div>
+        )}
+      </div>
+
+      <div className="px-3 pb-3 flex-none">
+        <CommandBarContainer />
+      </div>
+    </div>
+  );
+}
