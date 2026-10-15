@@ -24,9 +24,14 @@ export function WidgetPanel() {
       <h1 className="font-display text-[22px] font-bold a-heading">Widget</h1>
 
       <label className="flex items-center justify-between gap-3 cursor-pointer">
-        <span className="font-display text-[14px]">Always on top</span>
+        <div>
+          <span className="font-display text-[14px]">Always on top</span>
+          <p className="font-mono text-[10.5px] text-text-muted">
+            Off: sits on the desktop, behind other windows. On: floats above everything.
+          </p>
+        </div>
         <Toggle
-          checked={widgetSettings?.alwaysOnTop ?? true}
+          checked={widgetSettings?.alwaysOnTop ?? false}
           onChange={(v) => patch.mutate({ alwaysOnTop: v })}
           aria-label="Always on top"
         />

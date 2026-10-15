@@ -23,14 +23,18 @@ export function WidgetContent() {
   const { data: widgetSettings } = useWidgetSettings();
   const patchWidgetSettings = usePatchWidgetSettings();
   const { state: timer, start, pause, resume, stop, addFiveMinutes } = useTimer();
-  const [pinned, setPinned] = useState(true);
+  // Default is unpinned: the window sits anchored to the desktop (behind
+  // every other window) rather than floating on top of everything. Pinning
+  // switches it to the old floating-on-top behaviour instead — see
+  // commands/desktop_anchor.rs for how "unpinned" is actually implemented.
+  const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
     if (widgetSettings) setPinned(widgetSettings.alwaysOnTop);
   }, [widgetSettings]);
 
   useEffect(() => {
-    void getCurrentWindow().setAlwaysOnTop(pinned);
+    void invoke('set_companion_anchor', { label: 'widget', anchor: !pinned });
   }, [pinned]);
 
   const nextTask = (openTasks ?? [])

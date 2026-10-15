@@ -93,7 +93,10 @@ export const WidgetSettingsSchema = z.object({
 });
 export type WidgetSettings = z.infer<typeof WidgetSettingsSchema>;
 export const DEFAULT_WIDGET_SETTINGS: WidgetSettings = {
-  alwaysOnTop: true,
+  // Off by default: the companion sits anchored to the desktop (behind every
+  // other window), not floating on top of everything — see
+  // commands/desktop_anchor.rs and docs/decisions.md.
+  alwaysOnTop: false,
   startWithSystem: false,
   defaultSize: 'expanded',
   opacity: 100,

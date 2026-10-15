@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Dial, IconButton, LevelChip, PlayButton } from '@ascendant/ui';
 import { xpNeeded, DEFAULT_RULESET } from '@ascendant/engine';
-import { useMusicPlayerRemote, useProfile, useTimer } from '../hooks';
+import { useMusicPlayerRemote, useProfile, useTimer, useWidgetSettings } from '../hooks';
 import { assetUrl } from '../lib/assetUrl';
 
 function openMain(route?: string): void {
@@ -16,9 +17,16 @@ function openMain(route?: string): void {
  */
 export function StripContent() {
   const { data: profile } = useProfile();
+  const { data: widgetSettings } = useWidgetSettings();
   const { state: timer, start } = useTimer();
   const { state: track, playPause, next } = useMusicPlayerRemote();
   const timerIdle = timer.phase === 'idle';
+
+  // Same desktop-anchoring as the widget (see WidgetContent.tsx) — default
+  // is anchored to the desktop; "always on top" switches it to floating.
+  useEffect(() => {
+    void invoke('set_companion_anchor', { label: 'strip', anchor: !(widgetSettings?.alwaysOnTop ?? false) });
+  }, [widgetSettings?.alwaysOnTop]);
 
   const elapsedMin = (timer.totalS - timer.leftS) / 60;
   const totalMin = timer.totalS / 60 || 25;

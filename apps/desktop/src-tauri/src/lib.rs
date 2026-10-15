@@ -15,6 +15,7 @@ mod timer;
 mod tray;
 
 use commands::db::{db_batch_atomic, db_execute, db_select, init_db, AppDb};
+use commands::desktop_anchor::{apply_anchor, set_companion_anchor, AnchorWatchers};
 use commands::keychain::{keychain_delete, keychain_get, keychain_has, keychain_set};
 use commands::music_folder::scan_music_folder;
 use commands::windows::{
@@ -45,6 +46,19 @@ fn default_companion_is_compact(conn: &rusqlite::Connection) -> bool {
     json.ok()
         .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
         .and_then(|v| v.get("defaultSize").and_then(|s| s.as_str().map(|s| s == "compact")))
+        .unwrap_or(false)
+}
+
+/// Reads `settings.widget.alwaysOnTop` the same ad-hoc way, so the companion
+/// window starts in the right mode immediately rather than floating on top
+/// for a moment before the frontend's own effect corrects it. Default is
+/// `false` (anchored to the desktop) — see `commands::desktop_anchor`.
+fn default_always_on_top(conn: &rusqlite::Connection) -> bool {
+    let json: rusqlite::Result<String> =
+        conn.query_row("SELECT widget FROM settings LIMIT 1", [], |row| row.get(0));
+    json.ok()
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
+        .and_then(|v| v.get("alwaysOnTop").and_then(|b| b.as_bool()))
         .unwrap_or(false)
 }
 
@@ -103,6 +117,7 @@ pub fn run() {
             set_autostart,
             is_autostart_enabled,
             set_hotkey,
+            set_companion_anchor,
         ])
         .on_window_event(|window, event| {
             // Spec 7.1: closing main hides it to the tray; the companion
@@ -117,9 +132,11 @@ pub fn run() {
         .setup(|app| {
             let conn = init_db(app.handle()).expect("failed to open/migrate the database");
             let compact = default_companion_is_compact(&conn);
+            let always_on_top = default_always_on_top(&conn);
             let hotkey_combo = saved_hotkey_combo(&conn);
             app.manage(AppDb(Mutex::new(conn)));
             app.manage(TimerManager(Mutex::new(TimerState::default())));
+            app.manage(AnchorWatchers::default());
             spawn_tick_loop(app.handle().clone());
 
             tray::build_tray(app.handle())?;
@@ -139,6 +156,17 @@ pub fn run() {
                 let _ = open_main_window(app.handle(), None);
             }
             let _ = show_default_companion_window(app.handle(), compact);
+
+            // Apply the saved "always on top" / "sits on the desktop" mode to
+            // both companion windows up front, so whichever one is shown
+            // (compact above picked one) is never, even briefly, in the
+            // wrong mode before the frontend's own effect would otherwise
+            // correct it.
+            {
+                let watchers = app.state::<AnchorWatchers>();
+                let _ = apply_anchor(app.handle(), &watchers, "widget", !always_on_top);
+                let _ = apply_anchor(app.handle(), &watchers, "strip", !always_on_top);
+            }
 
             Ok(())
         })
