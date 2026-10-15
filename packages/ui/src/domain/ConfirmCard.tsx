@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Icon } from '../icons/Icon';
 import { IconButton } from '../primitives/IconButton';
 import { Button } from '../primitives/Button';
+import { Segmented } from '../primitives/Segmented';
 import { TypeTag } from '../primitives/TypeTag';
 import type { TypeTagKind } from '../primitives/TypeTag';
 
@@ -20,6 +22,8 @@ export interface ConfirmItemData {
   /** "7:00 AM or 7:00 PM?" style ambiguity; present only while unresolved. */
   ambiguityChoice?: { label: string; options: [string, string] };
   dailyMatchLabel?: string;
+  /** Set only when a log's duration is missing — Accept stays disabled until chosen (spec 6.1). */
+  durationChoice?: { label: string; options: string[]; value: string | null };
 }
 
 export interface ConfirmCardProps {
@@ -30,6 +34,7 @@ export interface ConfirmCardProps {
   onEdit: (id: string) => void;
   onRemove: (id: string) => void;
   onAmbiguityPick?: (id: string, choice: 0 | 1) => void;
+  onDurationPick?: (id: string, value: string) => void;
   onDiscard: () => void;
   onEditAll: () => void;
   onAcceptAll: () => void;
@@ -44,11 +49,13 @@ export function ConfirmCard({
   onEdit,
   onRemove,
   onAmbiguityPick,
+  onDurationPick,
   onDiscard,
   onEditAll,
   onAcceptAll,
 }: ConfirmCardProps) {
   const totalXp = items.reduce((sum, i) => sum + (i.xp ?? 0), 0);
+  const hasUnresolvedDuration = items.some((i) => i.durationChoice && !i.durationChoice.value);
 
   return (
     <div className="rounded-lg border border-rule bg-bg a-card-clip">
@@ -68,6 +75,7 @@ export function ConfirmCard({
             onEdit={() => onEdit(item.id)}
             onRemove={() => onRemove(item.id)}
             onAmbiguityPick={onAmbiguityPick ? (choice) => onAmbiguityPick(item.id, choice) : undefined}
+            onDurationPick={onDurationPick ? (value) => onDurationPick(item.id, value) : undefined}
           />
         ))}
       </div>
@@ -86,7 +94,7 @@ export function ConfirmCard({
           <Button variant="default" onClick={onEditAll}>
             EDIT
           </Button>
-          <Button variant="primary" onClick={onAcceptAll}>
+          <Button variant="primary" onClick={onAcceptAll} disabled={hasUnresolvedDuration}>
             ACCEPT ALL
           </Button>
         </div>
@@ -101,13 +109,16 @@ function ConfirmItem({
   onEdit,
   onRemove,
   onAmbiguityPick,
+  onDurationPick,
 }: {
   item: ConfirmItemData;
   onAccept: () => void;
   onEdit: () => void;
   onRemove: () => void;
   onAmbiguityPick?: (choice: 0 | 1) => void;
+  onDurationPick?: (value: string) => void;
 }) {
+  const durationUnresolved = Boolean(item.durationChoice && !item.durationChoice.value);
   return (
     <div className="flex flex-wrap items-start gap-3 p-4 a-row">
       <TypeTag kind={item.kind} />
@@ -137,6 +148,9 @@ function ConfirmItem({
             <span className="font-mono text-[11px] text-danger">{item.plausibilityWarning}</span>
           </div>
         )}
+        {item.durationChoice && onDurationPick && (
+          <DurationPicker choice={item.durationChoice} onPick={onDurationPick} />
+        )}
         {item.ambiguityChoice && onAmbiguityPick && (
           <div className="flex flex-col gap-1.5">
             <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">
@@ -161,10 +175,87 @@ function ConfirmItem({
       </div>
       <div className="flex items-center gap-1 flex-none">
         {item.xp != null && <span className="font-mono text-[13px] text-accent tabular-nums mr-1">+{item.xp} XP</span>}
-        <IconButton icon="check" aria-label="Accept" onClick={onAccept} />
+        <IconButton icon="check" aria-label="Accept" onClick={onAccept} disabled={durationUnresolved} />
         <IconButton icon="edit" aria-label="Edit" onClick={onEdit} />
         <IconButton icon="x" aria-label="Remove" onClick={onRemove} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Suggested options are closest-guess pills (spec 6.1) — picking one commits
+ * immediately. "Other" swaps in a plain number input for whenever none of
+ * the guesses are right, so the person is never stuck with only presets.
+ */
+function DurationPicker({
+  choice,
+  onPick,
+}: {
+  choice: NonNullable<ConfirmItemData['durationChoice']>;
+  onPick: (value: string) => void;
+}) {
+  const matchesOption = choice.value != null && choice.options.includes(choice.value);
+  const [customMode, setCustomMode] = useState(choice.value != null && !matchesOption);
+  const [customText, setCustomText] = useState(customMode ? choice.value ?? '' : '');
+
+  const commitCustom = () => {
+    const minutes = Number(customText);
+    if (customText.trim() !== '' && Number.isFinite(minutes) && minutes > 0) {
+      onPick(String(Math.round(minutes)));
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">{choice.label}</span>
+      {customMode ? (
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center gap-1.5 h-touch rounded-md border border-rule bg-surface px-3">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              autoFocus
+              className="w-14 bg-transparent font-mono text-[13px] text-text outline-none"
+              placeholder="0"
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              onBlur={commitCustom}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitCustom();
+                }
+              }}
+              aria-label={`${choice.label} — enter minutes`}
+            />
+            <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-text-muted">min</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setCustomMode(false);
+              setCustomText('');
+            }}
+          >
+            Pick instead
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Segmented
+            aria-label={choice.label}
+            value={choice.value ?? ''}
+            onChange={onPick}
+            options={choice.options.map((o) => ({ value: o, label: o }))}
+          />
+          <Button variant="ghost" size="sm" onClick={() => setCustomMode(true)}>
+            Other
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

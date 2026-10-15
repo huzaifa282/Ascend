@@ -15,8 +15,10 @@ import {
 } from '@ascendant/engine';
 import {
   createProvider,
+  describeError,
   interpretNote,
   matchDaily,
+  ProviderCallError,
   resolveTimeText,
   type InterpretContext,
   type InterpretationItem,
@@ -29,7 +31,7 @@ import type { ModelProvider } from '../settings/schema';
 import type { ServiceContext } from './context';
 import { completeDaily } from './completeDaily';
 import { completeTask } from './completeTask';
-import { logActivity } from './logActivity';
+import { computeActivityXpForInput, logActivity } from './logActivity';
 import { checkPenaltyZoneRecovery } from './penaltyZone';
 import { rescheduleTask } from './rescheduleTask';
 
@@ -127,8 +129,23 @@ export async function submitEntry(
     tokensOut: 0,
   });
 
-  const context = await buildInterpretContext(ctx, now);
-  const result = await interpretNote(provider, rawText, context);
+  let result: Awaited<ReturnType<typeof interpretNote>>;
+  try {
+    const context = await buildInterpretContext(ctx, now);
+    result = await interpretNote(provider, rawText, context);
+  } catch (err) {
+    // A thrown provider/network error (as opposed to a validation failure,
+    // which interpretNote already reports via result.ok) must still resolve
+    // the entry — otherwise it's stuck at 'interpreting' forever with no way
+    // to retry or see what went wrong.
+    const message = err instanceof ProviderCallError ? describeError(err.kind).message : 'Could not reach the model.';
+    await ctx.repos.entries.update(entryId, {
+      status: 'error',
+      error: message,
+      updatedAt: now,
+    });
+    return { entryId, status: 'error', itemIds: [], error: message };
+  }
 
   if (!result.ok || !result.interpretation) {
     await ctx.repos.entries.update(entryId, {
@@ -249,6 +266,52 @@ function weightsToStatWeights(weights: Array<{ code: StatCode; weight: number }>
   return out;
 }
 
+export interface EntryItemXpPreview {
+  xp: number;
+  statGains: Array<{ code: StatCode; amount: number }>;
+}
+
+/**
+ * Preview-only: what logActivity would credit for this log item right now,
+ * without writing anything. Returns null for a log with no duration yet (the
+ * confirm card asks for one before there's anything to preview) and for
+ * every non-log kind (task/reschedule/complete_task/question carry no XP).
+ */
+export async function previewEntryItemXp(ctx: ServiceContext, item: EntryItemRow, now: number): Promise<EntryItemXpPreview | null> {
+  if (item.kind !== 'log') return null;
+  const payload = item.payload as Record<string, unknown>;
+  const durationMin = Number(payload.duration_min ?? 0);
+  if (durationMin < 1) return null;
+
+  const { xpResult } = await computeActivityXpForInput(ctx, {
+    activityClass: String(payload.activity_class),
+    durationMin,
+    intensity: payload.intensity as 'light' | 'moderate' | 'hard',
+    distanceKm: (payload.distance_km as number | null) ?? null,
+    pages: (payload.pages as number | null) ?? null,
+    statWeights: weightsToStatWeights((payload.stats as Array<{ code: StatCode; weight: number }>) ?? []),
+    plausibilityOverride: 'confirmed',
+    now,
+  });
+
+  const statGains = Object.entries(xpResult.perStatXp)
+    .filter(([, amount]) => (amount ?? 0) !== 0)
+    .map(([code, amount]) => ({ code: code as StatCode, amount: amount ?? 0 }));
+
+  return { xp: xpResult.xpFinal, statGains };
+}
+
+/** Fills in the duration the model left null (spec 6.1's confirm card asks for it rather than guessing). */
+export async function setEntryItemDuration(ctx: ServiceContext, itemId: string, minutes: number, now: number): Promise<void> {
+  const item = await ctx.repos.entryItems.getById(itemId);
+  if (!item) throw new Error(`setEntryItemDuration: item ${itemId} not found`);
+  const payload = item.payload as Record<string, unknown>;
+  await ctx.repos.entryItems.update(itemId, {
+    payload: { ...payload, duration_min: minutes },
+    updatedAt: now,
+  });
+}
+
 /** Accepts a single pending entry_item, crediting it through the normal services. */
 export interface AcceptEntryItemResult {
   levelsGained: number;
@@ -266,6 +329,12 @@ export async function acceptEntryItem(ctx: ServiceContext, itemId: string, now: 
 
   switch (item.kind) {
     case 'log': {
+      // A log with no duration would silently credit 0 XP — the confirm card
+      // must collect one first (spec 6.1); this is the real gate, since the
+      // UI disabling Accept isn't enough on its own (e.g. Accept All).
+      if (Number(payload.duration_min ?? 0) < 1) {
+        throw new Error('Pick how long this took first.');
+      }
       const logResult = await logActivity(ctx, {
         title: String(payload.summary),
         activityClass: String(payload.activity_class),

@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { newId } from '@ascendant/db';
-import { checkPenaltyZoneRecovery, createServiceContext, completeTask as completeTaskService } from '../services';
+import {
+  checkPenaltyZoneRecovery,
+  createServiceContext,
+  completeTask as completeTaskService,
+  playFeedbackSound,
+} from '../services';
 import { resolveRepos } from './useRepos';
 import { useMomentsStore } from '../stores/useMomentsStore';
 import { useToastStore } from '../stores/useToastStore';
@@ -71,8 +76,14 @@ export function useCompleteTask() {
           toLevel: result.newLevel,
           hpRestored: true,
         });
+        void playFeedbackSound('levelUp');
+      } else if (result.tier !== 'failed') {
+        void playFeedbackSound('complete');
       }
-      if (result.recoveryCleared) pushMoment({ kind: 'penaltyZoneCleared' });
+      if (result.recoveryCleared) {
+        pushMoment({ kind: 'penaltyZoneCleared' });
+        void playFeedbackSound('cleared');
+      }
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });

@@ -58,7 +58,14 @@ export function createOpenAiCompatibleProvider(id: ProviderId, baseUrl: string, 
     async test(): Promise<TestResult> {
       const start = Date.now();
       try {
-        await this.listModels();
+        // OpenRouter's /models list is public and needs no key at all, so it
+        // can't prove a key works — /key is the one GET endpoint that actually
+        // checks auth, so use that instead to avoid a false "connected".
+        if (id === 'openrouter') {
+          await request('/key');
+        } else {
+          await this.listModels();
+        }
         return { ok: true, latencyMs: Date.now() - start };
       } catch (err) {
         if (err instanceof ProviderCallError) {

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { newId } from '@ascendant/db';
 import { DEFAULT_RULESET, dailyXpForSize, type DailySize } from '@ascendant/engine';
-import { createServiceContext, completeDaily as completeDailyService } from '../services';
+import { createServiceContext, completeDaily as completeDailyService, playFeedbackSound } from '../services';
 import { localDateString } from '../lib/localTime';
 import { resolveRepos } from './useRepos';
 import { useMomentsStore } from '../stores/useMomentsStore';
@@ -73,6 +73,9 @@ export function useCompleteDaily() {
           toLevel: result.newLevel,
           hpRestored: true,
         });
+        void playFeedbackSound('levelUp');
+      } else if (!result.alreadyDone) {
+        void playFeedbackSound('complete');
       }
       queryClient.invalidateQueries({ queryKey: ['dailyCompletions'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });

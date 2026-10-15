@@ -57,6 +57,16 @@ describe('createOpenAiCompatibleProvider', () => {
     expect(result.error).toBe('rate_limited');
   });
 
+  it('test() checks /key for openrouter instead of the unauthenticated /models list', async () => {
+    const fetchImpl = fakeFetch([{ status: 401, body: { error: { message: 'User not found.', code: 401 } } }]);
+    const provider = createOpenAiCompatibleProvider('openrouter', 'https://openrouter.ai/api/v1', config(fetchImpl));
+    const result = await provider.test();
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('bad_key');
+    const [calledUrl] = fetchImpl.mock.calls[0]!;
+    expect(calledUrl).toContain('/key');
+  });
+
   it('omits the Authorization header when no key is configured (Ollama/LM Studio)', async () => {
     const fetchImpl = fakeFetch([{ status: 200, body: { data: [] } }]);
     const provider = createOpenAiCompatibleProvider('ollama', 'http://127.0.0.1:11434/v1', {

@@ -1,12 +1,15 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { newId, type EntryItemRow } from '@ascendant/db';
-import type { AcceptEntryItemResult } from '../services';
+import type { AcceptEntryItemResult, EntryItemXpPreview, ServiceContext } from '../services';
 import {
   acceptEntryItem as acceptEntryItemService,
   createServiceContext,
   discardEntry as discardEntryService,
+  playFeedbackSound,
+  previewEntryItemXp,
   removeEntryItem as removeEntryItemService,
+  setEntryItemDuration as setEntryItemDurationService,
   submitEntry as submitEntryService,
 } from '../services';
 import { useMomentsStore } from '../stores/useMomentsStore';
@@ -22,12 +25,23 @@ export interface CommandBarState {
   status: 'idle' | 'interpreting' | 'needs_confirm' | 'queued' | 'error';
   entryId: string | null;
   items: EntryItemRow[];
+  /** XP/stat preview per item.id — null means "can't preview yet" (e.g. a log with no duration). */
+  previews: Record<string, EntryItemXpPreview | null>;
   error?: string;
   /** True only for the "no model connected" queued case — shows a link to Settings > Model. */
   needsModelSetup?: boolean;
 }
 
-const INITIAL_STATE: CommandBarState = { value: '', status: 'idle', entryId: null, items: [] };
+const INITIAL_STATE: CommandBarState = { value: '', status: 'idle', entryId: null, items: [], previews: {} };
+
+async function buildPreviews(
+  ctx: ServiceContext,
+  items: EntryItemRow[],
+  now: number,
+): Promise<Record<string, EntryItemXpPreview | null>> {
+  const entries = await Promise.all(items.map(async (item) => [item.id, await previewEntryItemXp(ctx, item, now)] as const));
+  return Object.fromEntries(entries);
+}
 
 /** Drives the whole spec 6.1 flow for the command bar / confirm card UI. */
 export function useCommandBar() {
@@ -50,8 +64,12 @@ export function useCommandBar() {
           toLevel: result.newLevel,
           hpRestored: true,
         });
+        void playFeedbackSound('levelUp');
       }
-      if (result.recoveryCleared) pushMoment({ kind: 'penaltyZoneCleared' });
+      if (result.recoveryCleared) {
+        pushMoment({ kind: 'penaltyZoneCleared' });
+        void playFeedbackSound('cleared');
+      }
     },
     [pushMoment],
   );
@@ -100,48 +118,95 @@ export function useCommandBar() {
     }
 
     setState((s) => ({ ...s, status: 'interpreting' }));
-    const ctx = await createServiceContext();
-    const now = Date.now();
-    const result = await submitEntryService(ctx, text, 'typed', now);
+    try {
+      const ctx = await createServiceContext();
+      const now = Date.now();
+      const result = await submitEntryService(ctx, text, 'typed', now);
 
-    if (result.status === 'needs_confirm') {
-      const items = await ctx.repos.entryItems.listByEntry(result.entryId);
-      setState({ value: '', status: 'needs_confirm', entryId: result.entryId, items });
-    } else if (result.status === 'queued') {
-      // No model is connected — the entry is saved (status 'queued' in the DB) rather
-      // than lost; say so instead of silently clearing the bar back to blank/idle.
+      if (result.status === 'needs_confirm') {
+        const items = await ctx.repos.entryItems.listByEntry(result.entryId);
+        const previews = await buildPreviews(ctx, items, now);
+        setState({ value: '', status: 'needs_confirm', entryId: result.entryId, items, previews });
+      } else if (result.status === 'queued') {
+        // No model is connected — the entry is saved (status 'queued' in the DB) rather
+        // than lost; say so instead of silently clearing the bar back to blank/idle.
+        setState({
+          ...INITIAL_STATE,
+          status: 'queued',
+          error: 'Saved — connect a model in Settings > Model to interpret it.',
+          needsModelSetup: true,
+        });
+      } else {
+        setState({ value: text, status: 'error', entryId: result.entryId, items: [], previews: {}, error: result.error });
+      }
+    } catch (err) {
+      // Anything thrown here (not just a reported result.error) must still clear
+      // 'interpreting' — otherwise the command bar is stuck showing that state
+      // forever with no way to retry.
       setState({
-        ...INITIAL_STATE,
-        status: 'queued',
-        error: 'Saved — connect a model in Settings > Model to interpret it.',
-        needsModelSetup: true,
+        value: text,
+        status: 'error',
+        entryId: null,
+        items: [],
+        previews: {},
+        error: err instanceof Error ? err.message : 'Something went wrong.',
       });
-    } else {
-      setState({ value: text, status: 'error', entryId: result.entryId, items: [], error: result.error });
     }
   }, [state.value, queryClient]);
 
   const acceptItem = useCallback(
     async (itemId: string) => {
-      const ctx = await createServiceContext();
-      const result = await acceptEntryItemService(ctx, itemId, Date.now());
-      pushLevelUpIfAny(result);
-      invalidateAfterAccept();
-      setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== itemId) }));
+      try {
+        const ctx = await createServiceContext();
+        const result = await acceptEntryItemService(ctx, itemId, Date.now());
+        pushLevelUpIfAny(result);
+        // Skip the plain "complete" chime when the bigger level-up/cleared one
+        // already fired for this accept — two chimes stacked reads as a glitch.
+        if (result.levelsGained === 0 && !result.recoveryCleared) void playFeedbackSound('complete');
+        invalidateAfterAccept();
+        setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== itemId), error: undefined }));
+      } catch (err) {
+        // The UI already disables Accept while a log's duration is unresolved;
+        // this is the backstop (the service re-checks) if that's ever bypassed.
+        setState((s) => ({ ...s, error: err instanceof Error ? err.message : 'Could not accept that item.' }));
+      }
     },
     [invalidateAfterAccept, pushLevelUpIfAny],
   );
 
   const acceptAll = useCallback(async () => {
+    try {
+      const ctx = await createServiceContext();
+      const now = Date.now();
+      let bigMomentFired = false;
+      for (const item of state.items) {
+        const result = await acceptEntryItemService(ctx, item.id, now);
+        pushLevelUpIfAny(result);
+        if (result.levelsGained > 0 || result.recoveryCleared) bigMomentFired = true;
+      }
+      // One chime for the whole batch — same reasoning as acceptItem, just
+      // deferred until the loop ends so it isn't one chime per item.
+      if (!bigMomentFired && state.items.length > 0) void playFeedbackSound('complete');
+      invalidateAfterAccept();
+      setState({ ...INITIAL_STATE });
+    } catch (err) {
+      setState((s) => ({ ...s, error: err instanceof Error ? err.message : 'Could not accept those items.' }));
+    }
+  }, [state.items, invalidateAfterAccept, pushLevelUpIfAny]);
+
+  const setDuration = useCallback(async (itemId: string, minutes: number) => {
     const ctx = await createServiceContext();
     const now = Date.now();
-    for (const item of state.items) {
-      const result = await acceptEntryItemService(ctx, item.id, now);
-      pushLevelUpIfAny(result);
-    }
-    invalidateAfterAccept();
-    setState({ ...INITIAL_STATE });
-  }, [state.items, invalidateAfterAccept, pushLevelUpIfAny]);
+    await setEntryItemDurationService(ctx, itemId, minutes, now);
+    const updated = await ctx.repos.entryItems.getById(itemId);
+    if (!updated) return;
+    const preview = await previewEntryItemXp(ctx, updated, now);
+    setState((s) => ({
+      ...s,
+      items: s.items.map((i) => (i.id === itemId ? updated : i)),
+      previews: { ...s.previews, [itemId]: preview },
+    }));
+  }, []);
 
   const removeItem = useCallback(async (itemId: string) => {
     const ctx = await createServiceContext();
@@ -159,5 +224,5 @@ export function useCommandBar() {
     setState({ ...INITIAL_STATE });
   }, [state.entryId]);
 
-  return { state, setValue, submit, acceptItem, acceptAll, removeItem, discard };
+  return { state, setValue, submit, acceptItem, acceptAll, removeItem, discard, setDuration };
 }

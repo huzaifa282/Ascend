@@ -22,8 +22,11 @@ export {
   acceptEntryItem,
   removeEntryItem,
   discardEntry,
+  previewEntryItemXp,
+  setEntryItemDuration,
   type SubmitEntryResult,
   type AcceptEntryItemResult,
+  type EntryItemXpPreview,
 } from './llm';
 export { buildAskSystemSummary, askSystem } from './askSystem';
 export { pickMusicFolder, scanMusicFolder, type ScannedTrack } from './music';
@@ -36,3 +39,4 @@ export {
   createSuggestedDailies,
 } from './onboarding';
 export { exportAllDataJson, exportLogCsv, importAllDataJson, deleteAllData, type DataExport } from './dataManagement';
+export { playFeedbackSound, type FeedbackSoundKind } from './sound';

@@ -24,6 +24,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       className={clsx(
         'inline-flex items-center justify-center w-touch h-touch min-w-touch min-h-touch flex-none',
         'text-text-muted hover:text-text hover:bg-surface transition-colors duration-base',
+        'disabled:opacity-40 disabled:pointer-events-none',
         round ? 'rounded-pill' : 'rounded-md',
         className,
       )}

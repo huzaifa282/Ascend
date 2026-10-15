@@ -42,9 +42,26 @@ export interface LogActivityResult {
   newLevel: number;
 }
 
-export async function logActivity(ctx: ServiceContext, input: LogActivityInput): Promise<LogActivityResult> {
+export interface ActivityXpPreview {
+  xpResult: ReturnType<typeof computeActivityXp>;
+  plausibility: PlausibilityState;
+  plausibilityCheck: ReturnType<typeof checkPlausibility>;
+}
+
+/**
+ * The read-and-compute half of logActivity, with no writes — shared so the
+ * confirm card's XP/stat preview can never drift from what accepting actually
+ * credits (both call this).
+ */
+export async function computeActivityXpForInput(
+  ctx: ServiceContext,
+  input: Pick<
+    LogActivityInput,
+    'activityClass' | 'durationMin' | 'intensity' | 'distanceKm' | 'pages' | 'statWeights' | 'plausibilityOverride' | 'now'
+  >,
+): Promise<ActivityXpPreview> {
   const profile = await ctx.repos.profile.get();
-  if (!profile) throw new Error('logActivity: no profile row');
+  if (!profile) throw new Error('computeActivityXpForInput: no profile row');
 
   const { startMs, endMs } = localDayBounds(input.now, profile.timezone);
   const totalLoggedTodayMinutes =
@@ -84,6 +101,16 @@ export async function logActivity(ctx: ServiceContext, input: LogActivityInput):
     },
     ctx.ruleset,
   );
+
+  return { xpResult, plausibility, plausibilityCheck };
+}
+
+export async function logActivity(ctx: ServiceContext, input: LogActivityInput): Promise<LogActivityResult> {
+  const profile = await ctx.repos.profile.get();
+  if (!profile) throw new Error('logActivity: no profile row');
+
+  const { xpResult, plausibility, plausibilityCheck } = await computeActivityXpForInput(ctx, input);
+  const statCodes = Object.keys(input.statWeights) as StatCode[];
 
   const activityId = newId();
   const activityRow: NewActivityRow = {
