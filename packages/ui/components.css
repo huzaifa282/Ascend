@@ -49,3 +49,19 @@
 .a-flash-accent {
   animation: a-flash-accent 600ms ease-out;
 }
+
+/* A newly created task/daily/quest row fades and rises in (spec: smooth,
+ * not flashy — a separate cue from a-flash-accent's System-message pulse). */
+@keyframes a-rise-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.a-rise-in {
+  animation: a-rise-in var(--motion-base) var(--ease-out);
+}

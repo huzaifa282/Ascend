@@ -71,6 +71,7 @@ export async function timerCredit(ctx: ServiceContext, input: TimerCreditInput):
   const result = await logActivity(ctx, {
     title: input.linkedTitle ?? 'Focus session',
     activityClass: 'deep work',
+    activityType: 'deep_work',
     durationMin: input.focusedMinutes,
     intensity: FOCUS_SESSION_INTENSITY,
     distanceKm: null,

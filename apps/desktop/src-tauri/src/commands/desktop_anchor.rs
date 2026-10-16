@@ -41,9 +41,9 @@ mod imp {
     use windows::core::{w, PCWSTR};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, FindWindowExW, FindWindowW, GetWindowLongPtrW, SendMessageTimeoutW, SetParent,
-        SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SMTO_NORMAL, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CHILD, WS_POPUP,
+        EnumWindows, FindWindowExW, FindWindowW, GetParent, GetWindowLongPtrW, SendMessageTimeoutW,
+        SetParent, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SMTO_NORMAL, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CHILD, WS_POPUP,
     };
 
     struct FindState {
@@ -115,6 +115,17 @@ mod imp {
         let hwnd = HWND(hwnd_addr as *mut _);
         match find_worker_w() {
             Some(worker) => {
+                // Skip the SetParent/style-flip entirely when we're already
+                // correctly parented — the watcher loop below calls this
+                // every few seconds for as long as anchoring is on, and
+                // reparenting a window it doesn't need to is a real,
+                // synchronous Win32 operation with its own (observed) risk
+                // of leaving the window half-transitioned. Only a genuine
+                // detach (Explorer recreating WorkerW) should trigger the
+                // actual re-attach work.
+                if unsafe { GetParent(hwnd) }.ok() == Some(worker) {
+                    return true;
+                }
                 set_child_style(hwnd, true);
                 let attached = unsafe { SetParent(hwnd, Some(worker)) }.is_ok();
                 // Re-assert after SetParent too: some Windows builds reset
@@ -143,6 +154,12 @@ mod imp {
 
         if anchor {
             window.set_always_on_top(false).map_err(|e| e.to_string())?;
+            // DWM's drop shadow is a top-level-window feature; once the
+            // window is WS_CHILD under WorkerW, DWM can't composite that
+            // shadow correctly and falls back to an opaque white rectangle
+            // clipped to the window's bounds — turn it off while anchored so
+            // that never shows.
+            let _ = window.set_shadow(false);
             anchor_addr(hwnd_addr);
 
             let flag = Arc::new(AtomicBool::new(true));
@@ -169,6 +186,7 @@ mod imp {
         } else {
             detach_addr(hwnd_addr);
             window.set_always_on_top(true).map_err(|e| e.to_string())?;
+            let _ = window.set_shadow(true);
         }
 
         Ok(())
@@ -189,8 +207,9 @@ mod imp {
 }
 
 /// Turns the "sits on the desktop" mode on or off for one companion window
-/// (spec decision: default is anchored; the user can opt back into floating
-/// on top of everything via Settings > Widget's "Always on top"). Plain
+/// (default is a normal floating window — see `DEFAULT_WIDGET_SETTINGS` in
+/// the frontend settings schema for why; the user can opt into "sits on the
+/// desktop" via Settings > Widget's "Always on top", inverted). Plain
 /// function so both the IPC command below and `lib.rs`'s startup setup (which
 /// has no `tauri::State` to extract from) can call the same logic.
 pub fn apply_anchor(app: &tauri::AppHandle, watchers: &AnchorWatchers, label: &str, anchor: bool) -> Result<(), String> {

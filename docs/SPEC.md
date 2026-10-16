@@ -198,9 +198,17 @@ Tests: value monotonic, cap 99, decay only after day 5, hidden stats never decay
 
 ### 5.2 Activity XP
 
+XP depends on what the activity *is* (`activity_type`), how hard it was (`intensity`) and how long it took
+(`duration_min`) — not duration alone. Longer sessions diminish rather than scaling linearly, so a 4-hour
+session isn't worth 4x a 1-hour one.
+
 ```
-xp_raw  = round(min(duration_min, 240) * BASE_RATE * INTENSITY[intensity])
-          BASE_RATE = 1.0, INTENSITY = { light: 0.8, moderate: 1.0, hard: 1.3 }
+effective_minutes(d) = sum over DURATION_TIERS of (minutes in that bracket * bracket's rate)
+          DURATION_TIERS = [{upToMin: 60, rate: 1}, {upToMin: 120, rate: 0.75}, {upToMin: 240, rate: 0.5}]
+xp_raw  = d <= 0 ? 0 : round((COMPLETION_BONUS + effective_minutes(min(d, 240))) * BASE_RATE * TYPE_RATE[activity_type] * INTENSITY[intensity])
+          BASE_RATE = 1.0, COMPLETION_BONUS = 5, INTENSITY = { light: 0.8, moderate: 1.0, hard: 1.3 }
+          TYPE_RATE = { strength: 1.2, cardio/sport/learning: 1.1, deep_work/creative/other: 1.0,
+                        reading/mindfulness: 0.9, mobility/social: 0.8, chores: 0.7 }
 per-stat daily soft cap: once a stat has received STAT_DAILY_CAP = 120 stat XP today,
           further stat XP to it is multiplied by 0.25
 xp_final = round(xp_raw * cap_factor * penalty_factor * plausibility_factor)
@@ -208,9 +216,15 @@ xp_final = round(xp_raw * cap_factor * penalty_factor * plausibility_factor)
           plausibility_factor = 0.2 while flagged, 1 once confirmed
 ```
 
+`activity_type` is the model's classification (6.2) when present, else a local keyword fallback
+(`classifyActivityType`, mirroring `classifyActivity`'s shape in 5.9) — this is extraction/classification,
+never an invented number, so it doesn't cross the "LLM never outputs numbers that affect progression" line:
+every rate it's multiplied against lives in the ruleset.
+
 `cap_factor` is the weight-averaged factor across the activity's stats. Total XP and stat XP both use the capped amounts. Show the explanation in the confirm card ("Capped: Endurance already +120 today").
 
-Tests: cap boundary exactly at 120, multi-stat split, penalty halving, plausibility restore on confirm.
+Tests: tier boundaries at 60/120/240, type rate, completion bonus, zero duration gives zero XP, cap boundary
+exactly at 120, multi-stat split, penalty halving, plausibility restore on confirm.
 
 ### 5.3 Levels and ranks
 
@@ -341,17 +355,20 @@ Offline or no model: entries stay `queued`, a banner says "1 entry will be inter
 ```ts
 const StatCode = z.enum(['STR','END','AGI','VIT','INT','FOC','CRE','CHA','DIS']);
 const Weights = z.array(z.object({ code: StatCode, weight: z.number().min(0.05).max(1) })).min(1).max(3);
+// Picks the XP type rate (5.2) — kept in sync with engine's ActivityType by a compile-time check in schemas.ts.
+const ActivityType = z.enum(['cardio','strength','sport','mobility','deep_work','learning','reading','creative','mindfulness','social','chores','other']);
 
 const LogItem = z.object({
   kind: z.literal('log'),
   summary: z.string().max(80),            // "Morning run, 5 km"
   activity_class: z.string().max(40),     // "running", "reading", "deep work"... used by plausibility
+  activity_type: ActivityType.nullable(), // picks the XP type rate (5.2); null only if truly nothing fits
   skill: z.string().max(40).nullable(),   // "Running", "TypeScript"
   duration_min: z.number().int().min(1).max(960).nullable(),
   intensity: z.enum(['light','moderate','hard']),
   distance_km: z.number().positive().nullable(),
   pages: z.number().int().positive().nullable(),
-  started_text: z.string().nullable(),    // "this morning", "at 7"
+  started_text: z.string().nullable(),    // "this morning", "at 7", or a start/end phrase when duration_min is null
   stats: Weights,
   matches_daily_id: z.string().nullable(),
   confidence: z.number().min(0).max(1),
@@ -396,8 +413,13 @@ Rules:
 - "log" = something they did. "task" = something to do later. "reschedule" = move an existing task (use its id).
   "complete_task" = they finished an existing open task (use its id). "question" = they are asking something.
 - Pick 1 to 3 stats that the activity trains, with weights that sum to 1. Use the stat descriptions given.
+- activity_type is the closest match from the listed types; null only if truly nothing fits.
+- intensity reflects what the person said about effort, not duration or type — "took it easy" is light, "pushed
+  myself" is hard, "moderate" when they say nothing about effort.
 - Use null when a value is not stated and cannot be reasonably inferred. Do not guess distances or durations wildly.
 - Keep times as the user's words in due_text / started_text. Do not convert them.
+- If the person gives a start and an end time ("from 6 to 6:40"), put it verbatim in started_text and leave
+  duration_min null — the duration is computed from the two times, not stated by the model.
 - If the activity clearly completes one of the listed daily quests, put its id in matches_daily_id.
 - difficulty for tasks: 1 trivial, 2 easy, 3 normal, 4 hard, 5 very hard.
 - confidence is how sure you are about the whole item, 0 to 1.
@@ -406,9 +428,24 @@ Rules:
 ### 6.5 Deterministic post-processing
 
 - **Times**: resolve `due_text` and `started_text` with `chrono-node` using the profile timezone and "now". If an hour from 1 to 11 has no am/pm and both readings are in the future within 24h, mark ambiguous and show the inline choice "7:00 AM or 7:00 PM?". If chrono fails, show a date-time picker in the item.
+- **Duration from a start/end phrase**: when `duration_min` is null but `started_text` holds a range ("from 6 to 6:40", "worked 2-4pm"), `parseDurationAnswer` (`packages/llm/src/postprocess/duration.ts`) reads it locally and fills both `duration_min` and the resolved start time — no confirm-card follow-up needed.
 - **Daily match**: accept `matches_daily_id` only if it exists and the daily is not already done today; also run a local fuzzy match (normalised tokens, Jaccard >= 0.5) as a fallback suggestion. Show "This completes Read 20 pages."
 - **Questions**: intents `left_today`, `xp_today`, `next_deadline`, `stat_status` are answered by code from the database with templated sentences; `other` goes to Ask the System (6.6).
 - **Confidence < 0.5**: open the item in edit mode by default.
+
+**Confirm card follow-ups for a log.** "How long?" is asked only when still missing after the above; "How hard
+was it?" is always asked, with the model's own guess preselected and labels that fit the activity type (e.g. a
+run: Easy pace / Steady / Pushed hard). Both change XP (5.2), so neither is left as a hidden guess. Duration
+offers closest-guess pills for the activity type (`packages/app/src/lib/followUps.ts`'s `durationSuggestions`,
+centered on a rough estimate from distance/pages when the note gave one) plus a free-text "Other" field.
+
+A typed duration answer is read locally first (`parseDurationAnswer`): bare numbers and units ("45", "1h20",
+"90 mins"), worded phrases ("an hour and a half"), a time range ("6-6:40", "from 7am to 8"), or a single past
+instant ("since 6pm", "started at 6:10", "an hour ago", capped at 12h back). Only when that fails, and a model
+is configured, does it fall back to `extractDurationAnswer` — a small, separate prompt whose only job is to pull
+the duration the person already stated out of their own words (never invent one); an unreadable answer shows
+"Couldn't read that" rather than guessing. Accept stays disabled while a required follow-up is unanswered or
+pending.
 
 ### 6.6 Ask the System (chat)
 

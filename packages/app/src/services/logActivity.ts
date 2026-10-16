@@ -2,9 +2,11 @@
 import { newId, runAtomic, schema, type NewActivityRow } from '@ascendant/db';
 import {
   checkPlausibility,
+  classifyActivityType,
   computeActivityXp,
   skillLevel,
   statValue,
+  type ActivityType,
   type Intensity,
   type PlausibilityState,
   type StatCode,
@@ -18,6 +20,8 @@ import { applyXpToProfile } from './profileXp';
 export interface LogActivityInput {
   title: string;
   activityClass: string;
+  /** What the activity *is*, for the XP type rate — defaults to classifying `activityClass` when omitted. */
+  activityType?: ActivityType;
   durationMin: number;
   intensity: Intensity;
   distanceKm: number | null;
@@ -57,7 +61,15 @@ export async function computeActivityXpForInput(
   ctx: ServiceContext,
   input: Pick<
     LogActivityInput,
-    'activityClass' | 'durationMin' | 'intensity' | 'distanceKm' | 'pages' | 'statWeights' | 'plausibilityOverride' | 'now'
+    | 'activityClass'
+    | 'activityType'
+    | 'durationMin'
+    | 'intensity'
+    | 'distanceKm'
+    | 'pages'
+    | 'statWeights'
+    | 'plausibilityOverride'
+    | 'now'
   >,
 ): Promise<ActivityXpPreview> {
   const profile = await ctx.repos.profile.get();
@@ -94,6 +106,7 @@ export async function computeActivityXpForInput(
     {
       durationMin: input.durationMin,
       intensity: input.intensity,
+      activityType: input.activityType ?? classifyActivityType(input.activityClass),
       statWeights: input.statWeights,
       statXpEarnedTodayByCode,
       inPenaltyZone: profile.penaltyZoneSince != null,

@@ -484,3 +484,44 @@ widget's own `overflow-hidden`. `LevelChip` was built for Today's wide
 header, not a narrow companion column. Fixed by stacking them vertically
 instead — `LevelChip` alone fits comfortably at this width, no new
 component needed.
+
+## 2026-10-16 — Activity XP keyed on type, not just duration; model classifies, engine rates
+
+Activity XP (5.2) only ever scaled with `duration_min * intensity` — a jog and a nap of
+the same length and stated effort earned identically, and `intensity` was buried in the
+model's output with no way to see or change it. Two additions, both keeping the spec's
+"LLM classifies and extracts only; the engine owns every number" line intact:
+
+**`activity_type` is a model classification, not an invented number.** The model already
+free-texts `activity_class` ("running", "deep work") for plausibility (5.9); `activity_type`
+is the same kind of call, just from a fixed enum (`packages/engine/src/activityType.ts`)
+picked to key an XP rate. `packages/llm/src/schemas.ts` keeps its own copy of that enum —
+`llm` depends only on engine's *types*, not its values — with a compile-time exact-equality
+check (`AssertExact<ActivityTypeAnswer, EngineActivityType>`) so the two can't silently drift.
+When the model leaves it null, `classifyActivityType` (same keyword-fallback shape as
+`classifyActivity` in 5.9) fills it in locally. Every `TYPE_RATE` value the classification is
+multiplied against lives in `DEFAULT_RULESET`, overridable like every other ruleset constant —
+the model picks a bucket, it never picks a number.
+
+**Duration diminishes instead of scaling linearly**, via `DURATION_TIERS` (full rate to 60min,
+0.75x the next hour, 0.5x beyond that) plus a flat `COMPLETION_BONUS` for showing up at all —
+so a 4-hour session isn't worth 4x a 1-hour one, and a 10-minute activity isn't worth
+next-to-nothing. Chosen over a flat multiplier because the spec's duration cap (240min) already
+established "more time, less marginal value" as the intended shape; tiers make that explicit and
+tunable per-bracket instead of only at the single 240min cliff.
+
+**Why effort moved into the confirm card.** `intensity` was always in the schema but never
+surfaced — the model's guess was final. Spec 6.1 already asks for duration when it's missing
+rather than guess; the same reasoning applies to effort, since it changes XP exactly as much as
+duration does (5.2). The confirm card now always asks "How hard was it?" (effort labels keyed by
+`activity_type` — "Pushed hard" for a run, "To failure" for lifting) with the model's guess
+preselected, so it's a visible default to accept or correct, not a hidden number.
+
+**Why the duration follow-up tries a local parser before the model.** A typed duration answer
+("45 min", "6-6:40", "since 6pm") almost always has one obvious reading; sending every such
+answer to the model would add latency and burn tokens for no real ambiguity. `parseDurationAnswer`
+(`packages/llm/src/postprocess/duration.ts`) handles units, worded phrases, chrono-parsed ranges
+and a single past instant locally, instantly, for free. Only when that returns null — and a
+provider is configured — does `extractDurationAnswer` ask the model, on a prompt and schema
+whose only job is pulling the duration out of the person's own words (never inventing one), same
+spirit as `interpretNote` but sized for a single short answer (128 max tokens vs 1024).

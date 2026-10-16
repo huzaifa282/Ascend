@@ -12,15 +12,18 @@ export interface QuestRowProps {
   right?: ReactNode;
   onToggle?: (done: boolean) => void;
   onClick?: () => void;
+  /** Just created — fades/rises in once (spec: a smooth, not flashy, add animation). */
+  isNew?: boolean;
 }
 
 /** 56px row; done = strikethrough muted; late = danger-wash bg + danger title (spec 9.2). */
-export function QuestRow({ title, meta, done = false, late = false, statCode, xp, right, onToggle, onClick }: QuestRowProps) {
+export function QuestRow({ title, meta, done = false, late = false, statCode, xp, right, onToggle, onClick, isNew = false }: QuestRowProps) {
   return (
     <div
       className={clsx(
         'flex items-center gap-3 h-14 px-3 a-row cursor-default',
         late && !done && 'bg-danger-wash',
+        isNew && 'a-rise-in',
       )}
       onClick={onClick}
     >

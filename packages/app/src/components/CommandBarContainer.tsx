@@ -1,26 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import { CommandBar, ConfirmCard } from '@ascendant/ui';
-import type { ConfirmItemData } from '@ascendant/ui';
+import type { ConfirmItemData, FollowUpQuestion } from '@ascendant/ui';
 import type { EntryItemRow } from '@ascendant/db';
 import { formatAmPm } from '@ascendant/llm';
-import { classifyActivity } from '@ascendant/engine';
+import { classifyActivityType, type ActivityType, type Intensity } from '@ascendant/engine';
 import { useCommandBar } from '../hooks/useCommandBar';
 import { useHotkeySettings } from '../hooks/useHotkeySettings';
 import { formatAccelerator } from '../lib/formatAccelerator';
+import { durationSuggestions, effortLabels } from '../lib/followUps';
 import type { EntryItemXpPreview } from '../services';
-
-// Spec 10.4's manual quick-pick is the 15/30/45/60/90 scale the rest of the
-// app already uses — kept as the fallback. Reading sessions skew shorter in
-// practice, so that one class gets its own closest-guess set; everything
-// else (including "other") uses the shared scale. This is app-side
-// presentation only — picking a pill still requires the person's Accept,
-// same as typing a custom value, so it's not the LLM inventing a number.
-const DEFAULT_DURATION_OPTIONS = ['15', '30', '45', '60', '90'];
-const READING_DURATION_OPTIONS = ['10', '20', '30', '45', '60'];
-
-function durationOptionsFor(activityClass: string): string[] {
-  return classifyActivity(activityClass) === 'reading' ? READING_DURATION_OPTIONS : DEFAULT_DURATION_OPTIONS;
-}
 
 // This container is shared by the main window, the widget and the floating
 // command window (spec 6.1/11.3) — the latter two have no router, so "open
@@ -30,18 +18,85 @@ function openMainSettings(): void {
   void invoke('open_main', { route: '/settings/model' });
 }
 
-function toConfirmItem(row: EntryItemRow, preview: EntryItemXpPreview | null | undefined): ConfirmItemData {
+function buildDurationFollowUp(
+  payload: Record<string, unknown>,
+  activityType: ActivityType,
+  pending: boolean,
+  error: string | undefined,
+): FollowUpQuestion {
+  const durationMin = payload.duration_min as number | null;
+  const resolvedStartedAt = payload.resolvedStartedAt as number | null;
+
+  let valueLabel: string | undefined;
+  if (durationMin) {
+    valueLabel =
+      resolvedStartedAt != null
+        ? `${durationMin} MIN · ${formatAmPm(new Date(resolvedStartedAt))}–${formatAmPm(new Date(resolvedStartedAt + durationMin * 60000))}`
+        : `${durationMin} MIN`;
+  }
+
+  return {
+    key: 'duration',
+    label: 'How long?',
+    options: durationSuggestions(
+      activityType,
+      (payload.distance_km as number | null) ?? null,
+      (payload.pages as number | null) ?? null,
+    ).map((o) => ({ value: o, label: o })),
+    value: durationMin ? String(durationMin) : null,
+    required: true,
+    allowCustom: true,
+    customPlaceholder: '45 min, 1h20, 6:00–6:40',
+    pending,
+    error,
+    valueLabel,
+  };
+}
+
+function buildEffortFollowUp(payload: Record<string, unknown>, activityType: ActivityType): FollowUpQuestion {
+  const labels = effortLabels(activityType);
+  const intensity = (payload.intensity as Intensity | undefined) ?? 'moderate';
+  return {
+    key: 'effort',
+    label: 'How hard was it?',
+    options: [
+      { value: 'light', label: labels.light },
+      { value: 'moderate', label: labels.moderate },
+      { value: 'hard', label: labels.hard },
+    ],
+    value: intensity,
+  };
+}
+
+function toConfirmItem(
+  row: EntryItemRow,
+  preview: EntryItemXpPreview | null | undefined,
+  durationPending: boolean,
+  durationError: string | undefined,
+): ConfirmItemData {
   const payload = row.payload as Record<string, unknown>;
 
   if (row.kind === 'log') {
+    const activityType: ActivityType =
+      (payload.activity_type as ActivityType | null) ?? classifyActivityType(String(payload.activity_class ?? ''));
     const durationMin = payload.duration_min as number | null;
+
     const metaChips: string[] = [];
     if (durationMin) metaChips.push(`${durationMin} MIN`);
-    if (payload.intensity) metaChips.push(String(payload.intensity).toUpperCase());
     if (payload.skill) metaChips.push(String(payload.skill).toUpperCase());
 
     const ambiguousOptions = payload.ambiguousOptions as [number, number] | null;
     const dailyMatch = payload.dailyMatch as { title: string } | null;
+
+    const followUps: FollowUpQuestion[] = [];
+    // The model left duration_min null — spec 6.1 asks rather than guessing,
+    // so XP/stat gains have something real to preview before Accept works.
+    if (!durationMin) {
+      followUps.push(buildDurationFollowUp(payload, activityType, durationPending, durationError));
+    }
+    // Always asked, with the model's own guess preselected — effort changes
+    // XP just like duration does, so it isn't left silently hidden (spec 5.2).
+    followUps.push(buildEffortFollowUp(payload, activityType));
 
     return {
       id: row.id,
@@ -58,11 +113,7 @@ function toConfirmItem(row: EntryItemRow, preview: EntryItemXpPreview | null | u
           }
         : undefined,
       dailyMatchLabel: dailyMatch ? `This completes ${dailyMatch.title}.` : undefined,
-      // The model left duration_min null — spec 6.1 asks rather than guessing,
-      // so XP/stat gains have something real to preview before Accept works.
-      durationChoice: durationMin
-        ? undefined
-        : { label: 'How long?', options: durationOptionsFor(String(payload.activity_class ?? '')), value: null },
+      followUps,
     };
   }
 
@@ -84,7 +135,7 @@ function toConfirmItem(row: EntryItemRow, preview: EntryItemXpPreview | null | u
 
 /** Wires the ui package's CommandBar + ConfirmCard to the real services (spec 6.1, 10.4). */
 export function CommandBarContainer() {
-  const { state, setValue, submit, acceptItem, acceptAll, removeItem, discard, setDuration } = useCommandBar();
+  const { state, setValue, submit, acceptItem, acceptAll, removeItem, discard, answerDuration, setEffort } = useCommandBar();
   const { data: hotkey } = useHotkeySettings();
   // An accept-time error (the service's duration guard, as a backstop) surfaces
   // here while still showing the confirm card, instead of replacing it.
@@ -133,11 +184,16 @@ export function CommandBarContainer() {
       />
       {state.status === 'needs_confirm' && state.items.length > 0 && (
         <ConfirmCard
-          items={state.items.map((item) => toConfirmItem(item, state.previews[item.id]))}
+          items={state.items.map((item) =>
+            toConfirmItem(item, state.previews[item.id], Boolean(state.durationPending[item.id]), state.durationErrors[item.id]),
+          )}
           onAccept={acceptItem}
           onEdit={() => {}}
           onRemove={removeItem}
-          onDurationPick={(id, value) => setDuration(id, Number(value))}
+          onFollowUpAnswer={(id, key, value) => {
+            if (key === 'duration') void answerDuration(id, value);
+            else if (key === 'effort') void setEffort(id, value as Intensity);
+          }}
           onDiscard={discard}
           onEditAll={() => {}}
           onAcceptAll={acceptAll}

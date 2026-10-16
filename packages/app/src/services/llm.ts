@@ -9,15 +9,19 @@
 import { newId, schema, type EntryItemRow } from '@ascendant/db';
 import {
   checkPlausibility,
+  classifyActivityType,
   DEFAULT_RULESET,
+  type ActivityType,
   type StatCode,
   type StatWeights,
 } from '@ascendant/engine';
 import {
   createProvider,
   describeError,
+  extractDurationAnswer,
   interpretNote,
   matchDaily,
+  parseDurationAnswer,
   ProviderCallError,
   resolveTimeText,
   type InterpretContext,
@@ -198,6 +202,24 @@ function buildEntryItemRow(
   let resolvedPayload: Record<string, unknown> = { ...item };
 
   if (item.kind === 'log') {
+    const activityType: ActivityType = item.activity_type ?? classifyActivityType(item.activity_class);
+
+    // When the model left duration_min null but captured a start/end phrase
+    // in started_text (spec 6.4's "from 6 to 6:40" rule), try to read the
+    // actual duration out of it locally before falling back to the confirm
+    // card's "How long?" follow-up — same parser the follow-up answer uses.
+    let durationMin = item.duration_min;
+    let resolvedStart = item.started_text ? resolveTimeText(item.started_text, new Date(now)) : null;
+    let rangeStartedAt: number | null = null;
+    if (durationMin == null && item.started_text) {
+      const parsedRange = parseDurationAnswer(item.started_text, new Date(now));
+      if (parsedRange) {
+        durationMin = parsedRange.minutes;
+        rangeStartedAt = parsedRange.startedAt;
+        resolvedStart = null; // the range parse already resolved a precise, unambiguous start
+      }
+    }
+
     // This check only decides the flag shown in the confirm card (using the
     // default ruleset, since per-item post-processing has no profile-scoped
     // override context yet); the real XP multiplier is computed again from
@@ -205,17 +227,16 @@ function buildEntryItemRow(
     const plausCheck = checkPlausibility(
       {
         activityClass: item.activity_class,
-        durationMin: item.duration_min ?? 0,
+        durationMin: durationMin ?? 0,
         distanceKm: item.distance_km,
         pages: item.pages,
-        xp: item.duration_min ? 1 : 0,
-        totalLoggedTodayMinutes: item.duration_min ?? 0,
+        xp: durationMin ? 1 : 0,
+        totalLoggedTodayMinutes: durationMin ?? 0,
       },
       DEFAULT_RULESET,
     );
     plausibility = plausCheck.flagged ? 'flagged' : 'ok';
 
-    const resolvedStart = item.started_text ? resolveTimeText(item.started_text, new Date(now)) : null;
     const match = matchDaily(
       item.summary,
       item.matches_daily_id,
@@ -223,7 +244,9 @@ function buildEntryItemRow(
     );
     resolvedPayload = {
       ...item,
-      resolvedStartedAt: resolvedStart?.date?.getTime() ?? null,
+      activity_type: activityType,
+      duration_min: durationMin,
+      resolvedStartedAt: rangeStartedAt ?? resolvedStart?.date?.getTime() ?? null,
       startAmbiguous: resolvedStart?.ambiguous ?? false,
       ambiguousOptions: resolvedStart?.ambiguousOptions?.map((d) => d.getTime()) ?? null,
       plausibilityReasons: plausCheck.reasons,
@@ -285,6 +308,7 @@ export async function previewEntryItemXp(ctx: ServiceContext, item: EntryItemRow
 
   const { xpResult } = await computeActivityXpForInput(ctx, {
     activityClass: String(payload.activity_class),
+    activityType: (payload.activity_type as ActivityType | null) ?? undefined,
     durationMin,
     intensity: payload.intensity as 'light' | 'moderate' | 'hard',
     distanceKm: (payload.distance_km as number | null) ?? null,
@@ -301,15 +325,109 @@ export async function previewEntryItemXp(ctx: ServiceContext, item: EntryItemRow
   return { xp: xpResult.xpFinal, statGains };
 }
 
-/** Fills in the duration the model left null (spec 6.1's confirm card asks for it rather than guessing). */
-export async function setEntryItemDuration(ctx: ServiceContext, itemId: string, minutes: number, now: number): Promise<void> {
+export interface LogItemDetailsPatch {
+  durationMin?: number;
+  /** Epoch ms — set together with durationMin whenever the answer resolved an actual start time. */
+  startedAt?: number | null;
+  intensity?: 'light' | 'moderate' | 'hard';
+}
+
+/** Patches a pending log item's duration/start/intensity (spec 6.1's confirm card asks rather than guessing). */
+export async function updateLogItemDetails(
+  ctx: ServiceContext,
+  itemId: string,
+  patch: LogItemDetailsPatch,
+  now: number,
+): Promise<void> {
   const item = await ctx.repos.entryItems.getById(itemId);
-  if (!item) throw new Error(`setEntryItemDuration: item ${itemId} not found`);
+  if (!item) throw new Error(`updateLogItemDetails: item ${itemId} not found`);
   const payload = item.payload as Record<string, unknown>;
-  await ctx.repos.entryItems.update(itemId, {
-    payload: { ...payload, duration_min: minutes },
+  const updated: Record<string, unknown> = { ...payload };
+  if (patch.durationMin !== undefined) updated.duration_min = patch.durationMin;
+  if (patch.startedAt !== undefined) {
+    updated.resolvedStartedAt = patch.startedAt;
+    updated.startAmbiguous = false;
+    updated.ambiguousOptions = null;
+  }
+  if (patch.intensity !== undefined) updated.intensity = patch.intensity;
+  await ctx.repos.entryItems.update(itemId, { payload: updated, updatedAt: now });
+}
+
+async function bumpEntryTokens(ctx: ServiceContext, entryId: string, tokensIn: number, tokensOut: number, now: number): Promise<void> {
+  if (tokensIn === 0 && tokensOut === 0) return;
+  const entry = await ctx.repos.entries.getById(entryId);
+  if (!entry) return;
+  await ctx.repos.entries.update(entryId, {
+    tokensIn: entry.tokensIn + tokensIn,
+    tokensOut: entry.tokensOut + tokensOut,
     updatedAt: now,
   });
+}
+
+const DURATION_UNREADABLE_MESSAGE = 'Couldn’t read that — try something like "40 min" or "6:00–6:40".';
+
+export interface AnswerDurationFollowUpResult {
+  ok: boolean;
+  minutes?: number;
+  label?: string;
+  message?: string;
+}
+
+/**
+ * Spec 6.5 — resolves a free-text "How long?" answer. Tries the local parser
+ * first (instant, no tokens); only calls the model when that fails and a
+ * provider is configured, and only ever to extract a duration the person
+ * already stated, never to invent one.
+ */
+export async function answerDurationFollowUp(
+  ctx: ServiceContext,
+  itemId: string,
+  text: string,
+  now: number,
+): Promise<AnswerDurationFollowUpResult> {
+  const item = await ctx.repos.entryItems.getById(itemId);
+  if (!item) throw new Error(`answerDurationFollowUp: item ${itemId} not found`);
+  const payload = item.payload as Record<string, unknown>;
+
+  const local = parseDurationAnswer(text, new Date(now));
+  if (local) {
+    await updateLogItemDetails(ctx, itemId, { durationMin: local.minutes, startedAt: local.startedAt ?? undefined }, now);
+    return { ok: true, minutes: local.minutes, label: local.label };
+  }
+
+  const provider = await createProviderForSettings(ctx);
+  if (!provider) {
+    return { ok: false, message: DURATION_UNREADABLE_MESSAGE };
+  }
+
+  const summary = String(payload.summary ?? 'Activity');
+  const localTime = new Date(now).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const result = await extractDurationAnswer(provider, summary, 'How long did this take?', text, localTime);
+  if (!result.ok || !result.answer) {
+    return { ok: false, message: DURATION_UNREADABLE_MESSAGE };
+  }
+  await bumpEntryTokens(ctx, item.entryId, result.tokensIn, result.tokensOut, now);
+
+  if (result.answer.duration_min != null) {
+    await updateLogItemDetails(ctx, itemId, { durationMin: result.answer.duration_min }, now);
+    return { ok: true, minutes: result.answer.duration_min, label: `${result.answer.duration_min} MIN` };
+  }
+
+  if (result.answer.started_text) {
+    const parsedRange = parseDurationAnswer(result.answer.started_text, new Date(now));
+    if (parsedRange) {
+      await updateLogItemDetails(ctx, itemId, { durationMin: parsedRange.minutes, startedAt: parsedRange.startedAt ?? undefined }, now);
+      return { ok: true, minutes: parsedRange.minutes, label: parsedRange.label };
+    }
+    const resolvedStart = resolveTimeText(result.answer.started_text, new Date(now));
+    if (resolvedStart.date && !resolvedStart.ambiguous) {
+      const minutes = Math.max(1, Math.round((now - resolvedStart.date.getTime()) / 60000));
+      await updateLogItemDetails(ctx, itemId, { durationMin: minutes, startedAt: resolvedStart.date.getTime() }, now);
+      return { ok: true, minutes, label: `${minutes} MIN` };
+    }
+  }
+
+  return { ok: false, message: DURATION_UNREADABLE_MESSAGE };
 }
 
 /** Accepts a single pending entry_item, crediting it through the normal services. */
@@ -338,6 +456,7 @@ export async function acceptEntryItem(ctx: ServiceContext, itemId: string, now: 
       const logResult = await logActivity(ctx, {
         title: String(payload.summary),
         activityClass: String(payload.activity_class),
+        activityType: (payload.activity_type as ActivityType | null) ?? undefined,
         durationMin: Number(payload.duration_min ?? 0),
         intensity: payload.intensity as 'light' | 'moderate' | 'hard',
         distanceKm: (payload.distance_km as number | null) ?? null,

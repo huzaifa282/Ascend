@@ -93,10 +93,14 @@ export const WidgetSettingsSchema = z.object({
 });
 export type WidgetSettings = z.infer<typeof WidgetSettingsSchema>;
 export const DEFAULT_WIDGET_SETTINGS: WidgetSettings = {
-  // Off by default: the companion sits anchored to the desktop (behind every
-  // other window), not floating on top of everything — see
-  // commands/desktop_anchor.rs and docs/decisions.md.
-  alwaysOnTop: false,
+  // On by default: a normal floating/topmost window. "Sits anchored to the
+  // desktop" (behind every other window, via the WorkerW reparenting trick
+  // in commands/desktop_anchor.rs) is available as an opt-in, but it's an
+  // unsupported, DPI/compositor-sensitive Windows hack that has repeatedly
+  // broken the window's transparent compositing and hit-testing outright —
+  // see docs/decisions.md — so it's no longer what new/existing users get
+  // without asking for it.
+  alwaysOnTop: true,
   startWithSystem: false,
   defaultSize: 'expanded',
   opacity: 100,

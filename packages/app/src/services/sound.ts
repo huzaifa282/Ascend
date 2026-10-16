@@ -7,10 +7,18 @@ export type FeedbackSoundKind = 'confirm' | 'complete' | 'levelUp' | 'cleared';
 // "musical feedback" needs no bundled audio asset and plays identically
 // everywhere the app runs.
 const PHRASES: Record<FeedbackSoundKind, number[]> = {
-  confirm: [659.25],
+  // A quick, bright two-note "pop" for adding something new — distinct from
+  // 'complete's fuller chime (finishing something) and deliberately short so
+  // it reads as a light, memorable confirmation rather than a distraction.
+  confirm: [880, 987.77],
   complete: [523.25, 659.25],
   levelUp: [523.25, 659.25, 783.99, 1046.5],
   cleared: [440, 554.37],
+};
+
+const DEFAULT_NOTE_LENGTH = 0.11;
+const NOTE_LENGTHS: Partial<Record<FeedbackSoundKind, number>> = {
+  confirm: 0.07,
 };
 
 let audioCtx: AudioContext | null = null;
@@ -53,7 +61,7 @@ export async function playFeedbackSound(kind: FeedbackSoundKind): Promise<void> 
 
     const audio = getAudioContext();
     if (!audio) return;
-    const noteLength = 0.11;
+    const noteLength = NOTE_LENGTHS[kind] ?? DEFAULT_NOTE_LENGTH;
     PHRASES[kind].forEach((freq, i) => playTone(audio, freq, audio.currentTime + i * noteLength, noteLength * 1.4));
   } catch {
     // Settings unreadable or Web Audio unavailable — stay silent rather than surface an error.

@@ -18,6 +18,8 @@ import { useShieldStatus } from '../hooks/useRestShield';
 import { resolveRepos } from '../hooks/useRepos';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShieldDialog } from '../components/ShieldDialog';
+import { playFeedbackSound } from '../services';
+import { useRecentlyAddedStore } from '../stores/useRecentlyAddedStore';
 
 const DAILY_SIZES: DailySize[] = ['small', 'medium', 'large', 'xlarge'];
 
@@ -58,12 +60,14 @@ export function Quests() {
   const restToday = Boolean(shieldStatus?.usedToday);
 
   const queryClient = useQueryClient();
+  const recentlyAddedId = useRecentlyAddedStore((s) => s.id);
   const createMainQuest = useMutation({
     mutationFn: async (title: string) => {
       const repos = await resolveRepos();
       const now = Date.now();
+      const id = newId();
       await repos.mainQuests.create({
-        id: newId(),
+        id,
         createdAt: now,
         updatedAt: now,
         title,
@@ -71,8 +75,13 @@ export function Quests() {
         targetDate: null,
         status: 'open',
       });
+      return id;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['mainQuests'] }),
+    onSuccess: (id) => {
+      useRecentlyAddedStore.getState().mark(id);
+      void playFeedbackSound('confirm');
+      queryClient.invalidateQueries({ queryKey: ['mainQuests'] });
+    },
   });
 
   const [addingDaily, setAddingDaily] = useState(false);
@@ -179,6 +188,7 @@ export function Quests() {
                 xp={d.xp}
                 onToggle={restToday ? undefined : () => completeDaily.mutate(d.id)}
                 right={restToday ? <Badge tone="muted">REST / FROZEN</Badge> : undefined}
+                isNew={d.id === recentlyAddedId}
               />
             ))}
             {(!dailies || dailies.length === 0) && !addingDaily && (
@@ -229,7 +239,10 @@ export function Quests() {
               const reward = rewardTierFor(task.dueAt, task.windowStart, task.difficulty as Difficulty, now);
               const late = task.dueAt != null && task.dueAt < now;
               return (
-                <div key={task.id} className={`flex items-center gap-3 px-4 py-3 a-row ${late ? 'bg-danger-wash' : ''}`}>
+                <div
+                  key={task.id}
+                  className={`flex items-center gap-3 px-4 py-3 a-row ${late ? 'bg-danger-wash' : ''} ${task.id === recentlyAddedId ? 'a-rise-in' : ''}`}
+                >
                   <div className="flex-1 min-w-0 flex flex-col gap-1">
                     <span className={`font-display text-[15px] truncate ${late ? 'text-danger' : ''}`}>{task.title}</span>
                     <div className="flex items-center gap-2">
@@ -303,7 +316,10 @@ export function Quests() {
             </div>
           )}
           {(mainQuests ?? []).map((q) => (
-            <div key={q.id} className="flex flex-col gap-1 px-4 py-3 a-row">
+            <div
+              key={q.id}
+              className={`flex flex-col gap-1 px-4 py-3 a-row ${q.id === recentlyAddedId ? 'a-rise-in' : ''}`}
+            >
               <span className="font-display text-[15px]">{q.title}</span>
               {q.description && <span className="font-mono text-[11px] text-text-muted">{q.description}</span>}
             </div>

@@ -3,6 +3,7 @@
 // HP, levels, ranks, or rewards themselves.
 
 export * from './types';
+export * from './activityType';
 export * from './ruleset';
 export * from './stats';
 export * from './activityXp';

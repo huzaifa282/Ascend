@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { xpNeeded, DEFAULT_RULESET } from '@ascendant/engine';
@@ -29,13 +29,37 @@ export function WidgetContent() {
   // commands/desktop_anchor.rs for how "unpinned" is actually implemented.
   const [pinned, setPinned] = useState(false);
 
+  // Rust's own setup() already applies the saved anchor state to this
+  // window before it's ever shown, reading the same settings row directly
+  // (see lib.rs) — so the first time this resolves here is always a
+  // no-op repeat of what Rust already did, and re-sending it would fire a
+  // second, near-simultaneous SetParent/SetWindowLongPtr on the same HWND
+  // while WebView2 is still doing its initial paint. On a reparenting trick
+  // this undocumented and DPI/compositor-sensitive (desktop_anchor.rs),
+  // that race has broken the window's transparent compositing and
+  // hit-testing outright — so `appliedInitialAnchor` skips exactly that one
+  // redundant call and nothing else. Every later resolution here is a
+  // genuine change (this window's own pin click, or "Always on top" toggled
+  // from Settings in the main window) and does need to be forwarded, since
+  // each window's anchor state lives natively, not in this shared setting.
+  const appliedInitialAnchor = useRef(false);
   useEffect(() => {
-    if (widgetSettings) setPinned(widgetSettings.alwaysOnTop);
+    if (!widgetSettings) return;
+    setPinned(widgetSettings.alwaysOnTop);
+    if (!appliedInitialAnchor.current) {
+      appliedInitialAnchor.current = true;
+      return;
+    }
+    void invoke('set_companion_anchor', { label: 'widget', anchor: !widgetSettings.alwaysOnTop });
   }, [widgetSettings]);
 
-  useEffect(() => {
-    void invoke('set_companion_anchor', { label: 'widget', anchor: !pinned });
-  }, [pinned]);
+  // Optimistic local flip for instant icon feedback; the effect above sends
+  // the actual native command once the DB write round-trips back through
+  // `widgetSettings` — see its comment for why it isn't sent from here too.
+  const togglePinned = () => {
+    setPinned((p) => !p);
+    patchWidgetSettings.mutate({ alwaysOnTop: !pinned });
+  };
 
   const nextTask = (openTasks ?? [])
     .filter((t) => t.dueAt != null)
@@ -64,10 +88,7 @@ export function WidgetContent() {
             aria-label={pinned ? 'Unpin from top' : 'Pin to top'}
             size={16}
             className={pinned ? 'text-on-accent bg-accent hover:text-on-accent hover:bg-accent' : undefined}
-            onClick={() => {
-              setPinned((p) => !p);
-              patchWidgetSettings.mutate({ alwaysOnTop: !pinned });
-            }}
+            onClick={togglePinned}
           />
           <IconButton icon="collapse" aria-label="Collapse" size={16} onClick={() => void invoke('toggle_companion_size')} />
           <IconButton icon="x" aria-label="Close" size={16} onClick={() => void getCurrentWindow().hide()} />

@@ -50,16 +50,18 @@ fn default_companion_is_compact(conn: &rusqlite::Connection) -> bool {
 }
 
 /// Reads `settings.widget.alwaysOnTop` the same ad-hoc way, so the companion
-/// window starts in the right mode immediately rather than floating on top
-/// for a moment before the frontend's own effect corrects it. Default is
-/// `false` (anchored to the desktop) — see `commands::desktop_anchor`.
+/// window starts in the right mode immediately rather than possibly being
+/// anchored for a moment before the frontend's own effect corrects it.
+/// Default is `true` (normal floating/topmost window) — see
+/// `commands::desktop_anchor` for why "sits on the desktop" isn't the
+/// default anymore.
 fn default_always_on_top(conn: &rusqlite::Connection) -> bool {
     let json: rusqlite::Result<String> =
         conn.query_row("SELECT widget FROM settings LIMIT 1", [], |row| row.get(0));
     json.ok()
         .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
         .and_then(|v| v.get("alwaysOnTop").and_then(|b| b.as_bool()))
-        .unwrap_or(false)
+        .unwrap_or(true)
 }
 
 /// Reads `settings.hotkey.combo` the same ad-hoc way — falls back to the

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Provider } from '@ascendant/llm';
 import { createTestServiceContext, seedMinimalProfile } from './testDb';
-import { acceptEntryItem, previewEntryItemXp, setEntryItemDuration, submitEntry } from './llm';
+import { acceptEntryItem, previewEntryItemXp, submitEntry, updateLogItemDetails } from './llm';
 
 // submitEntry takes an optional providerOverride specifically so tests don't
 // have to fight module-mocking to replace createProviderForSettings (which
@@ -17,6 +17,7 @@ const fakeProvider: Provider = {
           kind: 'log',
           summary: 'Morning run, 5 km',
           activity_class: 'running',
+          activity_type: 'cardio',
           skill: null,
           duration_min: 30,
           intensity: 'moderate',
@@ -108,6 +109,7 @@ const noDurationProvider: Provider = {
           kind: 'log',
           summary: 'Build a progress tracker app',
           activity_class: 'Software Development',
+          activity_type: 'deep_work',
           skill: 'Programming',
           duration_min: null,
           intensity: 'moderate',
@@ -151,7 +153,7 @@ describe('log items with no duration (spec 6.1: ask, never credit 0 XP silently)
     expect(statEventsBefore).toHaveLength(0);
 
     // User picks 30 minutes in the confirm card.
-    await setEntryItemDuration(ctx, item!.id, 30, now);
+    await updateLogItemDetails(ctx, item!.id, { durationMin: 30 }, now);
     const updated = await ctx.repos.entryItems.getById(item!.id);
     const preview = await previewEntryItemXp(ctx, updated!, now);
     expect(preview).not.toBeNull();

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Dial, IconButton, LevelChip, PlayButton } from '@ascendant/ui';
@@ -22,11 +22,22 @@ export function StripContent() {
   const { state: track, playPause, next } = useMusicPlayerRemote();
   const timerIdle = timer.phase === 'idle';
 
-  // Same desktop-anchoring as the widget (see WidgetContent.tsx) — default
-  // is anchored to the desktop; "always on top" switches it to floating.
+  // Same desktop-anchoring as the widget (see WidgetContent.tsx's longer
+  // comment) — default is anchored to the desktop; "always on top" switches
+  // it to floating. Rust's setup() already applies the saved state to this
+  // window before it's ever shown, so the first resolution here is always a
+  // redundant repeat; only forward genuine later changes (toggled from
+  // Settings in the main window, since the strip has no pin button of its
+  // own) to avoid racing that same SetParent/SetWindowLongPtr reparenting.
+  const appliedInitialAnchor = useRef(false);
   useEffect(() => {
+    if (widgetSettings === undefined) return;
+    if (!appliedInitialAnchor.current) {
+      appliedInitialAnchor.current = true;
+      return;
+    }
     void invoke('set_companion_anchor', { label: 'strip', anchor: !(widgetSettings?.alwaysOnTop ?? false) });
-  }, [widgetSettings?.alwaysOnTop]);
+  }, [widgetSettings]);
 
   const elapsedMin = (timer.totalS - timer.leftS) / 60;
   const totalMin = timer.totalS / 60 || 25;

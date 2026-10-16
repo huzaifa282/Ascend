@@ -1,4 +1,5 @@
 /** Spec 5.2 — Activity XP. */
+import type { ActivityType } from './activityType';
 import type { Ruleset } from './ruleset';
 import type { Intensity, StatCode, StatWeights } from './types';
 
@@ -7,6 +8,8 @@ export type PlausibilityState = 'ok' | 'flagged' | 'confirmed';
 export interface ActivityXpInput {
   durationMin: number;
   intensity: Intensity;
+  /** What the activity *is* — picks the type rate, separate from how hard or how long. */
+  activityType: ActivityType;
   statWeights: StatWeights;
   /** Stat XP each trained stat has already received today, before this activity. */
   statXpEarnedTodayByCode: Partial<Record<StatCode, number>>;
@@ -42,11 +45,44 @@ function perStatCapFactorFor(alreadyEarned: number, ruleset: Ruleset): number {
     : 1;
 }
 
+/**
+ * Applies the ruleset's duration tiers: minutes within the first tier's
+ * bracket count fully, minutes in later brackets count less — diminishing
+ * returns so a 4-hour session isn't worth 4x a 1-hour one.
+ */
+export function effectiveMinutes(durationMin: number, ruleset: Ruleset): number {
+  const tiers = ruleset.activityXp.durationTiers;
+  let remaining = durationMin;
+  let prevBound = 0;
+  let total = 0;
+  for (const tier of tiers) {
+    const bracketSize = tier.upToMin - prevBound;
+    const minutesInBracket = Math.min(remaining, bracketSize);
+    if (minutesInBracket > 0) total += minutesInBracket * tier.rate;
+    remaining -= minutesInBracket;
+    prevBound = tier.upToMin;
+    if (remaining <= 0) break;
+  }
+  // Only reachable if durationMin exceeds the last tier's upToMin (it
+  // shouldn't, once capped at durationCapMinutes) — fall back to the last
+  // tier's rate rather than silently dropping those minutes.
+  if (remaining > 0 && tiers.length > 0) {
+    total += remaining * tiers[tiers.length - 1]!.rate;
+  }
+  return total;
+}
+
 export function computeActivityXp(input: ActivityXpInput, ruleset: Ruleset): ActivityXpResult {
   const cappedDuration = Math.min(input.durationMin, ruleset.activityXp.durationCapMinutes);
-  const xpRaw = Math.round(
-    cappedDuration * ruleset.activityXp.baseRate * ruleset.activityXp.intensity[input.intensity],
-  );
+  const xpRaw =
+    cappedDuration > 0
+      ? Math.round(
+          (ruleset.activityXp.completionBonus + effectiveMinutes(cappedDuration, ruleset)) *
+            ruleset.activityXp.baseRate *
+            ruleset.activityXp.typeRate[input.activityType] *
+            ruleset.activityXp.intensity[input.intensity],
+        )
+      : 0;
 
   const statEntries = Object.entries(input.statWeights) as [StatCode, number][];
   const perStatCapFactor: Partial<Record<StatCode, number>> = {};

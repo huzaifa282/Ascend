@@ -59,7 +59,7 @@ export type { MicButtonProps } from './domain/MicButton';
 export { Waveform } from './domain/Waveform';
 export type { WaveformProps } from './domain/Waveform';
 export { ConfirmCard, ConfirmItem } from './domain/ConfirmCard';
-export type { ConfirmCardProps, ConfirmItemData, ConfirmItemStatGain } from './domain/ConfirmCard';
+export type { ConfirmCardProps, ConfirmItemData, ConfirmItemStatGain, FollowUpQuestion } from './domain/ConfirmCard';
 export { SystemMessage } from './domain/SystemMessage';
 export type { SystemMessageProps, SystemMessageKind } from './domain/SystemMessage';
 export { Notification } from './domain/Notification';

@@ -23,10 +23,13 @@ export {
   removeEntryItem,
   discardEntry,
   previewEntryItemXp,
-  setEntryItemDuration,
+  updateLogItemDetails,
+  answerDurationFollowUp,
   type SubmitEntryResult,
   type AcceptEntryItemResult,
   type EntryItemXpPreview,
+  type LogItemDetailsPatch,
+  type AnswerDurationFollowUpResult,
 } from './llm';
 export { buildAskSystemSummary, askSystem } from './askSystem';
 export { pickMusicFolder, scanMusicFolder, type ScannedTrack } from './music';

@@ -5,6 +5,7 @@
  *
  * `docs/ruleset.md` is generated from this file by `pnpm gen:ruleset`.
  */
+import type { ActivityType } from './activityType';
 import type { Rank, StatCode } from './types';
 
 export interface Ruleset {
@@ -17,9 +18,25 @@ export interface Ruleset {
     neglectDecay: boolean;
   };
   activityXp: {
-    /** xp_raw = round(min(duration_min, durationCapMinutes) * baseRate * intensity[x]). */
+    /**
+     * xp_raw = round((completionBonus + effectiveMinutes(min(duration_min, durationCapMinutes)))
+     *                 * baseRate * typeRate[activity_type] * intensity[x]), or 0 when duration_min <= 0.
+     * effectiveMinutes applies durationTiers — the first tier's worth of
+     * minutes count fully, later tiers count less (diminishing returns).
+     */
     baseRate: number;
     intensity: Record<'light' | 'moderate' | 'hard', number>;
+    /** Per-activity-type XP multiplier — what the activity *is* matters, not just how long it took. */
+    typeRate: Record<ActivityType, number>;
+    /** Flat XP just for logging the activity, before the duration-based amount. */
+    completionBonus: number;
+    /**
+     * Ascending, cumulative brackets: minutes up to the first tier's `upToMin`
+     * count at that tier's `rate`, the next bracket of minutes (up to the next
+     * tier's `upToMin`) count at the next rate, and so on. The last tier's
+     * `upToMin` should equal `durationCapMinutes`.
+     */
+    durationTiers: Array<{ upToMin: number; rate: number }>;
     durationCapMinutes: number;
     /** Once a stat has this much stat XP today, further XP to it is scaled down. */
     statDailyCap: number;
@@ -154,6 +171,26 @@ export const DEFAULT_RULESET: Ruleset = {
   activityXp: {
     baseRate: 1.0,
     intensity: { light: 0.8, moderate: 1.0, hard: 1.3 },
+    typeRate: {
+      strength: 1.2,
+      cardio: 1.1,
+      sport: 1.1,
+      learning: 1.1,
+      deep_work: 1.0,
+      creative: 1.0,
+      other: 1.0,
+      reading: 0.9,
+      mindfulness: 0.9,
+      mobility: 0.8,
+      social: 0.8,
+      chores: 0.7,
+    },
+    completionBonus: 5,
+    durationTiers: [
+      { upToMin: 60, rate: 1 },
+      { upToMin: 120, rate: 0.75 },
+      { upToMin: 240, rate: 0.5 },
+    ],
     durationCapMinutes: 240,
     statDailyCap: 120,
     capFactorReduced: 0.25,

@@ -6,7 +6,7 @@ Return only JSON matching this exact shape — no other text, no markdown fences
 
 "kind" must be exactly one of these five strings — never anything else:
 
-{"kind":"log","summary":string,"activity_class":string,"skill":string|null,"duration_min":integer|null,"intensity":"light"|"moderate"|"hard","distance_km":number|null,"pages":integer|null,"started_text":string|null,"stats":[{"code":STAT_CODE,"weight":number}],"matches_daily_id":string|null,"confidence":number}
+{"kind":"log","summary":string,"activity_class":string,"activity_type":ACTIVITY_TYPE|null,"skill":string|null,"duration_min":integer|null,"intensity":"light"|"moderate"|"hard","distance_km":number|null,"pages":integer|null,"started_text":string|null,"stats":[{"code":STAT_CODE,"weight":number}],"matches_daily_id":string|null,"confidence":number}
 
 {"kind":"task","title":string,"due_text":string|null,"difficulty":integer(1-5),"est_minutes":integer|null,"stats":[{"code":STAT_CODE,"weight":number}],"reminder_minutes":integer[]|null}
 
@@ -22,8 +22,15 @@ Rules:
   "complete_task" = they finished an existing open task (use its id). "question" = they are asking something.
 - Pick 1 to 3 stats that the activity trains, with weights that sum to 1. Use the stat descriptions given. STAT_CODE
   is one of the stat codes given (e.g. STR, END, AGI, VIT, INT, FOC, CRE, CHA, DIS) — never a stat name or description.
+- activity_type is the closest match from: cardio, strength, sport, mobility, deep_work, learning, reading, creative,
+  mindfulness, social, chores, other. Use null only if truly nothing fits.
+- intensity reflects what the person said about effort, not the activity's duration or type — "took it easy" or
+  "light jog" is light, "pushed myself" or "went all out" is hard. Use "moderate" when they say nothing about effort.
 - Use null when a value is not stated and cannot be reasonably inferred. Do not guess distances or durations wildly.
 - Keep times as the user's words in due_text / started_text. Do not convert them.
+- If the person gives a start and an end time (e.g. "from 6 to 6:40", "worked 2-4pm"), put that whole phrase verbatim
+  in started_text and leave duration_min null — it will be computed from the two times. Only put a single value in
+  duration_min when the person states a length directly ("for 30 minutes", "a 45 min run").
 - If the activity clearly completes one of the listed daily quests, put its id in matches_daily_id.
 - difficulty for tasks: 1 trivial, 2 easy, 3 normal, 4 hard, 5 very hard.
 - confidence is how sure you are about the whole item, 0 to 1.`;

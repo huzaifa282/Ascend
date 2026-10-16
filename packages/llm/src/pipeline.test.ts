@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { interpretNote } from './pipeline';
+import { extractDurationAnswer, interpretNote } from './pipeline';
 import type { Provider } from './providers/types';
 
 const ctx = {
@@ -36,6 +36,7 @@ describe('interpretNote', () => {
             kind: 'log',
             summary: 'Morning run, 5 km',
             activity_class: 'running',
+            activity_type: 'cardio',
             skill: 'Running',
             duration_min: 30,
             intensity: 'moderate',
@@ -86,6 +87,7 @@ describe('interpretNote', () => {
             kind: 'log',
             summary: 'Read a book',
             activity_class: 'reading',
+            activity_type: 'reading',
             skill: null,
             duration_min: 20,
             intensity: 'light',
@@ -123,6 +125,7 @@ describe('interpretNote', () => {
             kind: 'log',
             summary: 'Deep work',
             activity_class: 'deep work',
+            activity_type: 'deep_work',
             skill: null,
             duration_min: 60,
             intensity: 'moderate',
@@ -141,5 +144,40 @@ describe('interpretNote', () => {
     const result = await interpretNote(provider, 'did deep work', ctx);
     expect(result.interpretation?.items[0]).not.toHaveProperty('xp');
     expect(result.interpretation?.items[0]).not.toHaveProperty('hp');
+  });
+});
+
+describe('extractDurationAnswer', () => {
+  it('parses a duration straight out of the model response', async () => {
+    const provider = fakeProvider([JSON.stringify({ duration_min: 40, started_text: null })]);
+    const result = await extractDurationAnswer(provider, 'Went for a jog', 'How long?', 'about forty', '7:00 AM');
+    expect(result.ok).toBe(true);
+    expect(result.answer).toEqual({ duration_min: 40, started_text: null });
+    expect(provider.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a verbatim start phrase instead of doing the time math itself', async () => {
+    const provider = fakeProvider([JSON.stringify({ duration_min: null, started_text: 'since this morning' })]);
+    const result = await extractDurationAnswer(provider, 'Read', 'How long?', 'since this morning', '7:00 AM');
+    expect(result.ok).toBe(true);
+    expect(result.answer?.started_text).toBe('since this morning');
+    expect(result.answer?.duration_min).toBeNull();
+  });
+
+  it('retries once on schema validation failure and succeeds on the second try', async () => {
+    const provider = fakeProvider([
+      'not json',
+      JSON.stringify({ duration_min: 25, started_text: null }),
+    ]);
+    const result = await extractDurationAnswer(provider, 'Stretched', 'How long?', 'twenty five minutes', '9:00 AM');
+    expect(result.ok).toBe(true);
+    expect(provider.complete).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails after two bad attempts and surfaces an error', async () => {
+    const provider = fakeProvider(['nonsense', 'still nonsense']);
+    const result = await extractDurationAnswer(provider, 'Something', 'How long?', 'gibberish', '9:00 AM');
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeTruthy();
   });
 });

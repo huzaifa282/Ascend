@@ -8,6 +8,7 @@ import {
 } from '../services';
 import { resolveRepos } from './useRepos';
 import { useMomentsStore } from '../stores/useMomentsStore';
+import { useRecentlyAddedStore } from '../stores/useRecentlyAddedStore';
 import { useToastStore } from '../stores/useToastStore';
 
 export function useOpenTasks() {
@@ -27,8 +28,9 @@ export function useCreateTask() {
     mutationFn: async (title: string) => {
       const repos = await resolveRepos();
       const now = Date.now();
+      const id = newId();
       await repos.tasks.create({
-        id: newId(),
+        id,
         createdAt: now,
         updatedAt: now,
         title,
@@ -48,8 +50,13 @@ export function useCreateTask() {
         emergency: false,
         expiresAt: null,
       });
+      return id;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: (id) => {
+      useRecentlyAddedStore.getState().mark(id);
+      void playFeedbackSound('confirm');
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
   });
 }
 

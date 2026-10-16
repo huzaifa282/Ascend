@@ -11,6 +11,30 @@ export interface ConfirmItemStatGain {
   amount: number;
 }
 
+/**
+ * One confirm-card follow-up question for a log item (spec 6.1/6.5) — "How
+ * long?" and "How hard was it?" are both this shape. `required` gates
+ * Accept; `allowCustom` adds the free-text escape hatch (with `pending`/
+ * `error`/`valueLabel` describing an in-flight or resolved typed answer) for
+ * questions whose preset pills might not fit, like duration. A plain pick
+ * list (effort) just omits `allowCustom`.
+ */
+export interface FollowUpQuestion {
+  key: string;
+  label: string;
+  options: Array<{ value: string; label: string }>;
+  value: string | null;
+  required?: boolean;
+  allowCustom?: boolean;
+  customPlaceholder?: string;
+  /** True while a typed answer is being read (locally or by the model fallback). */
+  pending?: boolean;
+  /** Set when a typed answer couldn't be read at all. */
+  error?: string;
+  /** Shown instead of the raw value once a typed answer resolves, e.g. "40 MIN · 6:00 PM–6:40 PM". */
+  valueLabel?: string;
+}
+
 export interface ConfirmItemData {
   id: string;
   kind: TypeTagKind;
@@ -22,8 +46,8 @@ export interface ConfirmItemData {
   /** "7:00 AM or 7:00 PM?" style ambiguity; present only while unresolved. */
   ambiguityChoice?: { label: string; options: [string, string] };
   dailyMatchLabel?: string;
-  /** Set only when a log's duration is missing — Accept stays disabled until chosen (spec 6.1). */
-  durationChoice?: { label: string; options: string[]; value: string | null };
+  /** Duration/effort follow-ups for a log item — Accept stays disabled while any required one is unanswered or pending (spec 6.1). */
+  followUps?: FollowUpQuestion[];
 }
 
 export interface ConfirmCardProps {
@@ -34,10 +58,14 @@ export interface ConfirmCardProps {
   onEdit: (id: string) => void;
   onRemove: (id: string) => void;
   onAmbiguityPick?: (id: string, choice: 0 | 1) => void;
-  onDurationPick?: (id: string, value: string) => void;
+  onFollowUpAnswer?: (id: string, key: string, value: string) => void;
   onDiscard: () => void;
   onEditAll: () => void;
   onAcceptAll: () => void;
+}
+
+function hasUnresolvedRequired(item: ConfirmItemData): boolean {
+  return Boolean(item.followUps?.some((f) => f.required && (f.value == null || f.pending)));
 }
 
 /** Header "N ITEMS FROM ONE SENTENCE" + model; per-item meta/gains/warnings; footer TOTAL +XP (spec 9.2). */
@@ -49,13 +77,13 @@ export function ConfirmCard({
   onEdit,
   onRemove,
   onAmbiguityPick,
-  onDurationPick,
+  onFollowUpAnswer,
   onDiscard,
   onEditAll,
   onAcceptAll,
 }: ConfirmCardProps) {
   const totalXp = items.reduce((sum, i) => sum + (i.xp ?? 0), 0);
-  const hasUnresolvedDuration = items.some((i) => i.durationChoice && !i.durationChoice.value);
+  const hasAnyUnresolvedRequired = items.some(hasUnresolvedRequired);
 
   return (
     <div className="rounded-lg border border-rule bg-bg a-card-clip">
@@ -75,7 +103,7 @@ export function ConfirmCard({
             onEdit={() => onEdit(item.id)}
             onRemove={() => onRemove(item.id)}
             onAmbiguityPick={onAmbiguityPick ? (choice) => onAmbiguityPick(item.id, choice) : undefined}
-            onDurationPick={onDurationPick ? (value) => onDurationPick(item.id, value) : undefined}
+            onFollowUpAnswer={onFollowUpAnswer ? (key, value) => onFollowUpAnswer(item.id, key, value) : undefined}
           />
         ))}
       </div>
@@ -94,7 +122,7 @@ export function ConfirmCard({
           <Button variant="default" onClick={onEditAll}>
             EDIT
           </Button>
-          <Button variant="primary" onClick={onAcceptAll} disabled={hasUnresolvedDuration}>
+          <Button variant="primary" onClick={onAcceptAll} disabled={hasAnyUnresolvedRequired}>
             ACCEPT ALL
           </Button>
         </div>
@@ -109,16 +137,16 @@ function ConfirmItem({
   onEdit,
   onRemove,
   onAmbiguityPick,
-  onDurationPick,
+  onFollowUpAnswer,
 }: {
   item: ConfirmItemData;
   onAccept: () => void;
   onEdit: () => void;
   onRemove: () => void;
   onAmbiguityPick?: (choice: 0 | 1) => void;
-  onDurationPick?: (value: string) => void;
+  onFollowUpAnswer?: (key: string, value: string) => void;
 }) {
-  const durationUnresolved = Boolean(item.durationChoice && !item.durationChoice.value);
+  const blocked = hasUnresolvedRequired(item);
   return (
     <div className="flex flex-wrap items-start gap-3 p-4 a-row">
       <TypeTag kind={item.kind} />
@@ -148,8 +176,12 @@ function ConfirmItem({
             <span className="font-mono text-[11px] text-danger">{item.plausibilityWarning}</span>
           </div>
         )}
-        {item.durationChoice && onDurationPick && (
-          <DurationPicker choice={item.durationChoice} onPick={onDurationPick} />
+        {item.followUps && onFollowUpAnswer && (
+          <div className="flex flex-col gap-2.5">
+            {item.followUps.map((q) => (
+              <FollowUpQuestionView key={q.key} question={q} onAnswer={(value) => onFollowUpAnswer(q.key, value)} />
+            ))}
+          </div>
         )}
         {item.ambiguityChoice && onAmbiguityPick && (
           <div className="flex flex-col gap-1.5">
@@ -175,7 +207,7 @@ function ConfirmItem({
       </div>
       <div className="flex items-center gap-1 flex-none">
         {item.xp != null && <span className="font-mono text-[13px] text-accent tabular-nums mr-1">+{item.xp} XP</span>}
-        <IconButton icon="check" aria-label="Accept" onClick={onAccept} disabled={durationUnresolved} />
+        <IconButton icon="check" aria-label="Accept" onClick={onAccept} disabled={blocked} />
         <IconButton icon="edit" aria-label="Edit" onClick={onEdit} />
         <IconButton icon="x" aria-label="Remove" onClick={onRemove} />
       </div>
@@ -185,75 +217,109 @@ function ConfirmItem({
 
 /**
  * Suggested options are closest-guess pills (spec 6.1) — picking one commits
- * immediately. "Other" swaps in a plain number input for whenever none of
- * the guesses are right, so the person is never stuck with only presets.
+ * immediately. "Other" (when `allowCustom`) swaps in a plain text input for
+ * whenever none of the guesses are right, so the person is never stuck with
+ * only presets. A typed answer that needs reading (duration free text) shows
+ * "Reading…" while pending and a danger-styled message if it can't be read;
+ * once resolved it collapses to a confirmation line with an Edit affordance.
  */
-function DurationPicker({
-  choice,
-  onPick,
+function FollowUpQuestionView({
+  question,
+  onAnswer,
 }: {
-  choice: NonNullable<ConfirmItemData['durationChoice']>;
-  onPick: (value: string) => void;
+  question: FollowUpQuestion;
+  onAnswer: (value: string) => void;
 }) {
-  const matchesOption = choice.value != null && choice.options.includes(choice.value);
-  const [customMode, setCustomMode] = useState(choice.value != null && !matchesOption);
-  const [customText, setCustomText] = useState(customMode ? choice.value ?? '' : '');
+  const matchesOption = question.value != null && question.options.some((o) => o.value === question.value);
+  const [customMode, setCustomMode] = useState(Boolean(question.allowCustom) && question.value != null && !matchesOption);
+  const [forceEditing, setForceEditing] = useState(false);
+  const [customText, setCustomText] = useState('');
+
+  const showInput = customMode && (forceEditing || question.value == null || Boolean(question.pending) || Boolean(question.error));
 
   const commitCustom = () => {
-    const minutes = Number(customText);
-    if (customText.trim() !== '' && Number.isFinite(minutes) && minutes > 0) {
-      onPick(String(Math.round(minutes)));
-    }
+    const text = customText.trim();
+    if (text === '') return;
+    setForceEditing(false);
+    onAnswer(text);
   };
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">{choice.label}</span>
+      <span className="font-mono text-[11px] uppercase tracking-[.1em] text-text-muted">{question.label}</span>
       {customMode ? (
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-1.5 h-touch rounded-md border border-rule bg-surface px-3">
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              autoFocus
-              className="w-14 bg-transparent font-mono text-[13px] text-text outline-none"
-              placeholder="0"
-              value={customText}
-              onChange={(e) => setCustomText(e.target.value)}
-              onBlur={commitCustom}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitCustom();
-                }
-              }}
-              aria-label={`${choice.label} — enter minutes`}
-            />
-            <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-text-muted">min</span>
+        showInput ? (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                autoFocus
+                disabled={question.pending}
+                className="h-touch flex-1 min-w-[160px] rounded-md border border-rule bg-surface px-3 font-mono text-[13px] text-text outline-none placeholder:text-text-muted disabled:opacity-60"
+                placeholder={question.customPlaceholder ?? 'Type an answer'}
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+                onBlur={commitCustom}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitCustom();
+                  }
+                }}
+                aria-label={`${question.label} — custom answer`}
+              />
+              {!question.pending && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCustomMode(false);
+                    setForceEditing(false);
+                    setCustomText('');
+                  }}
+                >
+                  Pick instead
+                </Button>
+              )}
+            </div>
+            {question.pending && (
+              <span className="font-mono text-[10.5px] uppercase tracking-[.1em] text-text-muted">Reading…</span>
+            )}
+            {question.error && (
+              <div className="flex items-center gap-2 bg-danger-wash rounded-md px-2 py-1.5">
+                <Icon name="warn" size={14} className="text-danger flex-none" />
+                <span className="font-mono text-[11px] text-danger">{question.error}</span>
+              </div>
+            )}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setCustomMode(false);
-              setCustomText('');
-            }}
-          >
-            Pick instead
-          </Button>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[13px] text-text">{question.valueLabel ?? question.value}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setForceEditing(true);
+                setCustomText('');
+              }}
+            >
+              Edit
+            </Button>
+          </div>
+        )
       ) : (
         <div className="flex items-center gap-2">
           <Segmented
-            aria-label={choice.label}
-            value={choice.value ?? ''}
-            onChange={onPick}
-            options={choice.options.map((o) => ({ value: o, label: o }))}
+            aria-label={question.label}
+            value={question.value ?? ''}
+            onChange={onAnswer}
+            options={question.options}
           />
-          <Button variant="ghost" size="sm" onClick={() => setCustomMode(true)}>
-            Other
-          </Button>
+          {question.allowCustom && (
+            <Button variant="ghost" size="sm" onClick={() => setCustomMode(true)}>
+              Other
+            </Button>
+          )}
         </div>
       )}
     </div>

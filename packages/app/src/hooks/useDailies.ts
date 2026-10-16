@@ -5,6 +5,7 @@ import { createServiceContext, completeDaily as completeDailyService, playFeedba
 import { localDateString } from '../lib/localTime';
 import { resolveRepos } from './useRepos';
 import { useMomentsStore } from '../stores/useMomentsStore';
+import { useRecentlyAddedStore } from '../stores/useRecentlyAddedStore';
 import { useToastStore } from '../stores/useToastStore';
 
 export function useActiveDailies() {
@@ -35,8 +36,9 @@ export function useCreateDaily() {
     mutationFn: async ({ title, size }: { title: string; size: DailySize }) => {
       const repos = await resolveRepos();
       const now = Date.now();
+      const id = newId();
       await repos.dailies.create({
-        id: newId(),
+        id,
         createdAt: now,
         updatedAt: now,
         title,
@@ -46,8 +48,13 @@ export function useCreateDaily() {
         active: true,
         sort: 0,
       });
+      return id;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dailies'] }),
+    onSuccess: (id) => {
+      useRecentlyAddedStore.getState().mark(id);
+      void playFeedbackSound('confirm');
+      queryClient.invalidateQueries({ queryKey: ['dailies'] });
+    },
   });
 }
 

@@ -4,13 +4,14 @@ import { newId, type EntryItemRow } from '@ascendant/db';
 import type { AcceptEntryItemResult, EntryItemXpPreview, ServiceContext } from '../services';
 import {
   acceptEntryItem as acceptEntryItemService,
+  answerDurationFollowUp as answerDurationFollowUpService,
   createServiceContext,
   discardEntry as discardEntryService,
   playFeedbackSound,
   previewEntryItemXp,
   removeEntryItem as removeEntryItemService,
-  setEntryItemDuration as setEntryItemDurationService,
   submitEntry as submitEntryService,
+  updateLogItemDetails as updateLogItemDetailsService,
 } from '../services';
 import { useMomentsStore } from '../stores/useMomentsStore';
 
@@ -27,12 +28,24 @@ export interface CommandBarState {
   items: EntryItemRow[];
   /** XP/stat preview per item.id — null means "can't preview yet" (e.g. a log with no duration). */
   previews: Record<string, EntryItemXpPreview | null>;
+  /** True while a typed duration answer is being read (locally, or by the model fallback). */
+  durationPending: Record<string, boolean>;
+  /** Set when a duration answer couldn't be read at all — cleared on the next attempt. */
+  durationErrors: Record<string, string | undefined>;
   error?: string;
   /** True only for the "no model connected" queued case — shows a link to Settings > Model. */
   needsModelSetup?: boolean;
 }
 
-const INITIAL_STATE: CommandBarState = { value: '', status: 'idle', entryId: null, items: [], previews: {} };
+const INITIAL_STATE: CommandBarState = {
+  value: '',
+  status: 'idle',
+  entryId: null,
+  items: [],
+  previews: {},
+  durationPending: {},
+  durationErrors: {},
+};
 
 async function buildPreviews(
   ctx: ServiceContext,
@@ -112,6 +125,7 @@ export function useCommandBar() {
         emergency: false,
         expiresAt: null,
       });
+      void playFeedbackSound('confirm');
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setState({ ...INITIAL_STATE, status: 'queued', error: `Added task: "${title}".` });
       return;
@@ -126,7 +140,7 @@ export function useCommandBar() {
       if (result.status === 'needs_confirm') {
         const items = await ctx.repos.entryItems.listByEntry(result.entryId);
         const previews = await buildPreviews(ctx, items, now);
-        setState({ value: '', status: 'needs_confirm', entryId: result.entryId, items, previews });
+        setState({ value: '', status: 'needs_confirm', entryId: result.entryId, items, previews, durationPending: {}, durationErrors: {} });
       } else if (result.status === 'queued') {
         // No model is connected — the entry is saved (status 'queued' in the DB) rather
         // than lost; say so instead of silently clearing the bar back to blank/idle.
@@ -137,7 +151,16 @@ export function useCommandBar() {
           needsModelSetup: true,
         });
       } else {
-        setState({ value: text, status: 'error', entryId: result.entryId, items: [], previews: {}, error: result.error });
+        setState({
+          value: text,
+          status: 'error',
+          entryId: result.entryId,
+          items: [],
+          previews: {},
+          durationPending: {},
+          durationErrors: {},
+          error: result.error,
+        });
       }
     } catch (err) {
       // Anything thrown here (not just a reported result.error) must still clear
@@ -149,6 +172,8 @@ export function useCommandBar() {
         entryId: null,
         items: [],
         previews: {},
+        durationPending: {},
+        durationErrors: {},
         error: err instanceof Error ? err.message : 'Something went wrong.',
       });
     }
@@ -194,10 +219,54 @@ export function useCommandBar() {
     }
   }, [state.items, invalidateAfterAccept, pushLevelUpIfAny]);
 
-  const setDuration = useCallback(async (itemId: string, minutes: number) => {
+  /**
+   * A duration follow-up answer — a suggested pill (a plain "30") or
+   * free-typed text ("6-6:40", "an hour and a half") both go through the
+   * same path: the local parser resolves a pill instantly with nothing
+   * pending, and only a typed answer it can't read falls back to the model
+   * (spec 6.5), surfacing "couldn't read that" rather than doing nothing.
+   */
+  const answerDuration = useCallback(async (itemId: string, text: string) => {
+    setState((s) => ({
+      ...s,
+      durationPending: { ...s.durationPending, [itemId]: true },
+      durationErrors: { ...s.durationErrors, [itemId]: undefined },
+    }));
+    try {
+      const ctx = await createServiceContext();
+      const now = Date.now();
+      const result = await answerDurationFollowUpService(ctx, itemId, text, now);
+      if (!result.ok) {
+        setState((s) => ({
+          ...s,
+          durationPending: { ...s.durationPending, [itemId]: false },
+          durationErrors: { ...s.durationErrors, [itemId]: result.message ?? "Couldn't read that." },
+        }));
+        return;
+      }
+      const updated = await ctx.repos.entryItems.getById(itemId);
+      const preview = updated ? await previewEntryItemXp(ctx, updated, now) : null;
+      setState((s) => ({
+        ...s,
+        items: updated ? s.items.map((i) => (i.id === itemId ? updated : i)) : s.items,
+        previews: updated ? { ...s.previews, [itemId]: preview } : s.previews,
+        durationPending: { ...s.durationPending, [itemId]: false },
+        durationErrors: { ...s.durationErrors, [itemId]: undefined },
+      }));
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        durationPending: { ...s.durationPending, [itemId]: false },
+        durationErrors: { ...s.durationErrors, [itemId]: err instanceof Error ? err.message : "Couldn't read that." },
+      }));
+    }
+  }, []);
+
+  /** How-hard-was-it pick — always resolved locally, never pending or erroring. */
+  const setEffort = useCallback(async (itemId: string, intensity: 'light' | 'moderate' | 'hard') => {
     const ctx = await createServiceContext();
     const now = Date.now();
-    await setEntryItemDurationService(ctx, itemId, minutes, now);
+    await updateLogItemDetailsService(ctx, itemId, { intensity }, now);
     const updated = await ctx.repos.entryItems.getById(itemId);
     if (!updated) return;
     const preview = await previewEntryItemXp(ctx, updated, now);
@@ -224,5 +293,5 @@ export function useCommandBar() {
     setState({ ...INITIAL_STATE });
   }, [state.entryId]);
 
-  return { state, setValue, submit, acceptItem, acceptAll, removeItem, discard, setDuration };
+  return { state, setValue, submit, acceptItem, acceptAll, removeItem, discard, answerDuration, setEffort };
 }

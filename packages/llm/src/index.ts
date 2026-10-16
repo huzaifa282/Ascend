@@ -4,6 +4,8 @@ export * from './providers';
 export * from './pipeline';
 export * from './prompts/interpret';
 export * from './prompts/ask';
+export * from './prompts/followup';
 export * from './postprocess/time';
 export * from './postprocess/dailyMatch';
+export * from './postprocess/duration';
 export * from './postprocess/answerTemplates';
