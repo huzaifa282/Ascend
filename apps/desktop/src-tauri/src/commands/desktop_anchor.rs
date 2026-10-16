@@ -1,227 +1,56 @@
-//! A true "sits on the desktop" mode for the companion widget/strip (explicit
-//! product decision, see docs/decisions.md): the window renders *behind* every
-//! other application window, the way an old Windows desktop gadget or a
-//! Rainmeter skin does, rather than just being a normal non-topmost window —
-//! that weaker behaviour is what `Window::set_always_on_bottom` would give for
-//! free, and it isn't what was asked for (it's still a regular top-level
-//! window: Show Desktop would minimise it, and it can still end up stacked
-//! above other windows depending on focus order).
+//! The companion widget/strip's "pin" toggle. Plain, cross-platform Tauri
+//! window-level z-order control — pinned floats on top of everything;
+//! unpinned sits below every other normal window instead (still above the
+//! desktop itself).
 //!
-//! This relies on the same undocumented `WorkerW` technique those tools use:
-//! ask Explorer's `Progman` window to spawn a hidden `WorkerW` behind the
-//! desktop icons (message `0x052C`), then `SetParent` our window under it.
-//! It is unsupported by Microsoft, Windows-only, and known to be undone by an
-//! Explorer restart or some display/DPI changes — `set_companion_anchor`
-//! starts a background watcher that keeps re-attaching every few seconds
-//! while anchoring is on, and stops it the moment it's turned off.
+//! A previous version of this reparented the window behind the desktop icon
+//! layer via Explorer's undocumented `WorkerW` (the Rainmeter/Wallpaper
+//! Engine trick), to get a window that's visually "on the desktop" rather
+//! than just non-topmost. That was removed — see docs/decisions.md — after
+//! a diagnosis against the real installed build found it unfixable:
+//! `WorkerW` sits *behind* the desktop icon list, so the icon layer gets
+//! every mouse event first, and nothing rendered there can ever be clicked.
+//! It was also the direct cause of a real cross-thread deadlock (a watcher
+//! thread and the main UI thread each waiting on the other). The trade-off
+//! for the widget being usable at all: Win+D/Show Desktop now minimises it
+//! like any other normal window, instead of leaving it visible behind the
+//! icons.
 
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
-/// Per-window "keep re-attaching" flags, one per currently-anchored window
-/// label. Stopping the flag before starting a new one (or detaching) means
-/// toggling back and forth never leaves a stale watcher thread running.
-#[derive(Default)]
-pub struct AnchorWatchers(pub Mutex<HashMap<String, Arc<AtomicBool>>>);
-
-fn stop_watcher(watchers: &AnchorWatchers, label: &str) {
-    if let Ok(mut map) = watchers.0.lock() {
-        if let Some(flag) = map.remove(label) {
-            flag.store(false, Ordering::Relaxed);
-        }
+/// `anchor = true` sits below every other window; `false` floats on top.
+/// Matches the frontend's existing `invoke('set_companion_anchor', { label, anchor })`
+/// call sites exactly, so nothing there needs to change.
+pub fn apply_anchor(app: &tauri::AppHandle, label: &str, anchor: bool) -> Result<(), String> {
+    let window = app.get_webview_window(label).ok_or_else(|| format!("{label} window missing"))?;
+    if anchor {
+        window.set_always_on_top(false).map_err(|e| e.to_string())?;
+        window.set_always_on_bottom(true).map_err(|e| e.to_string())?;
+    } else {
+        window.set_always_on_bottom(false).map_err(|e| e.to_string())?;
+        window.set_always_on_top(true).map_err(|e| e.to_string())?;
     }
+    Ok(())
 }
 
-#[cfg(target_os = "windows")]
-mod imp {
-    use super::*;
-    use std::time::Duration;
-    use windows::core::{w, PCWSTR};
-    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, FindWindowExW, FindWindowW, GetParent, GetWindowLongPtrW, SendMessageTimeoutW,
-        SetParent, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SMTO_NORMAL, SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CHILD, WS_POPUP,
-    };
-
-    struct FindState {
-        worker_w: HWND,
-    }
-
-    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> windows::core::BOOL {
-        let state = unsafe { &mut *(lparam.0 as *mut FindState) };
-        // The desktop icons live in a SHELLDLL_DefView child of one top-level
-        // window; the WorkerW immediately *after* that one in z-order is the
-        // empty one Explorer creates behind the icons — that's the one we want.
-        let has_defview = unsafe { FindWindowExW(Some(hwnd), None, w!("SHELLDLL_DefView"), PCWSTR::null()) };
-        if has_defview.is_ok() {
-            if let Ok(next) = unsafe { FindWindowExW(None, Some(hwnd), w!("WorkerW"), PCWSTR::null()) } {
-                state.worker_w = next;
-            }
-        }
-        true.into()
-    }
-
-    fn find_worker_w() -> Option<HWND> {
-        let progman = unsafe { FindWindowW(w!("Progman"), PCWSTR::null()) }.ok()?;
-
-        // Ask Progman to create the hidden WorkerW if it hasn't already.
-        // Undocumented, but this exact message is what every known
-        // implementation of this trick sends; the timeout keeps a hung
-        // Explorer from blocking us.
-        let mut result: usize = 0;
-        unsafe {
-            let _ = SendMessageTimeoutW(progman, 0x052C, WPARAM(0), LPARAM(0), SMTO_NORMAL, 1000, Some(&mut result));
-        }
-
-        let mut state = FindState { worker_w: HWND(std::ptr::null_mut()) };
-        unsafe {
-            let _ = EnumWindows(Some(enum_proc), LPARAM(&mut state as *mut FindState as isize));
-        }
-
-        (!state.worker_w.0.is_null()).then_some(state.worker_w)
-    }
-
-    /// `SetParent` alone does not make Windows treat the window as a real
-    /// child for input/hit-testing — a window tao creates undecorated is
-    /// `WS_POPUP`, and reparenting a `WS_POPUP` window without also flipping
-    /// it to `WS_CHILD` is exactly what leaves it visible but unable to
-    /// receive clicks. `SWP_FRAMECHANGED` forces Windows to re-evaluate the
-    /// style change (per `SetWindowLongPtr`'s own documented requirement).
-    fn set_child_style(hwnd: HWND, is_child: bool) {
-        unsafe {
-            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-            let new_style = if is_child {
-                (style & !(WS_POPUP.0 as isize)) | (WS_CHILD.0 as isize)
-            } else {
-                (style & !(WS_CHILD.0 as isize)) | (WS_POPUP.0 as isize)
-            };
-            SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
-            let _ = SetWindowPos(
-                hwnd,
-                None,
-                0,
-                0,
-                0,
-                0,
-                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-            );
-        }
-    }
-
-    fn anchor_addr(hwnd_addr: isize) -> bool {
-        let hwnd = HWND(hwnd_addr as *mut _);
-        match find_worker_w() {
-            Some(worker) => {
-                // Skip the SetParent/style-flip entirely when we're already
-                // correctly parented — the watcher loop below calls this
-                // every few seconds for as long as anchoring is on, and
-                // reparenting a window it doesn't need to is a real,
-                // synchronous Win32 operation with its own (observed) risk
-                // of leaving the window half-transitioned. Only a genuine
-                // detach (Explorer recreating WorkerW) should trigger the
-                // actual re-attach work.
-                if unsafe { GetParent(hwnd) }.ok() == Some(worker) {
-                    return true;
-                }
-                set_child_style(hwnd, true);
-                let attached = unsafe { SetParent(hwnd, Some(worker)) }.is_ok();
-                // Re-assert after SetParent too: some Windows builds reset
-                // non-client metrics on reparent, so one FRAMECHANGED before
-                // and after is cheap insurance against the style not sticking.
-                let _ = unsafe {
-                    SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
-                };
-                attached
-            }
-            None => false,
-        }
-    }
-
-    fn detach_addr(hwnd_addr: isize) {
-        let hwnd = HWND(hwnd_addr as *mut _);
-        let _ = unsafe { SetParent(hwnd, None) };
-        set_child_style(hwnd, false);
-    }
-
-    pub fn apply(app: &tauri::AppHandle, watchers: &AnchorWatchers, label: &str, anchor: bool) -> Result<(), String> {
-        let window = app.get_webview_window(label).ok_or_else(|| format!("{label} window missing"))?;
-        stop_watcher(watchers, label);
-
-        let hwnd_addr = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
-
-        if anchor {
-            window.set_always_on_top(false).map_err(|e| e.to_string())?;
-            // DWM's drop shadow is a top-level-window feature; once the
-            // window is WS_CHILD under WorkerW, DWM can't composite that
-            // shadow correctly and falls back to an opaque white rectangle
-            // clipped to the window's bounds — turn it off while anchored so
-            // that never shows.
-            let _ = window.set_shadow(false);
-            anchor_addr(hwnd_addr);
-
-            let flag = Arc::new(AtomicBool::new(true));
-            watchers
-                .0
-                .lock()
-                .map_err(|e| e.to_string())?
-                .insert(label.to_string(), flag.clone());
-
-            // Explorer restarting (or some display/DPI changes) destroys and
-            // recreates the WorkerW, silently detaching whatever was parented
-            // to it — keep checking every few seconds while this is turned on.
-            std::thread::spawn(move || {
-                while flag.load(Ordering::Relaxed) {
-                    anchor_addr(hwnd_addr);
-                    for _ in 0..40 {
-                        if !flag.load(Ordering::Relaxed) {
-                            return;
-                        }
-                        std::thread::sleep(Duration::from_millis(100));
-                    }
-                }
-            });
-        } else {
-            detach_addr(hwnd_addr);
-            window.set_always_on_top(true).map_err(|e| e.to_string())?;
-            let _ = window.set_shadow(true);
-        }
-
-        Ok(())
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-mod imp {
-    use super::*;
-
-    /// The WorkerW trick is Windows-only; elsewhere "not pinned" just falls
-    /// back to a normal, non-topmost window.
-    pub fn apply(app: &tauri::AppHandle, watchers: &AnchorWatchers, label: &str, anchor: bool) -> Result<(), String> {
-        stop_watcher(watchers, label);
-        let window = app.get_webview_window(label).ok_or_else(|| format!("{label} window missing"))?;
-        window.set_always_on_top(!anchor).map_err(|e| e.to_string())
-    }
-}
-
-/// Turns the "sits on the desktop" mode on or off for one companion window
-/// (default is a normal floating window — see `DEFAULT_WIDGET_SETTINGS` in
-/// the frontend settings schema for why; the user can opt into "sits on the
-/// desktop" via Settings > Widget's "Always on top", inverted). Plain
-/// function so both the IPC command below and `lib.rs`'s startup setup (which
-/// has no `tauri::State` to extract from) can call the same logic.
-pub fn apply_anchor(app: &tauri::AppHandle, watchers: &AnchorWatchers, label: &str, anchor: bool) -> Result<(), String> {
-    imp::apply(app, watchers, label, anchor)
+/// Reads `settings.widget.alwaysOnTop` the same ad-hoc way `lib.rs`'s old
+/// `default_always_on_top` did (not worth a typed Rust mirror of the JS Zod
+/// schema for one field) — shared here so both `lib.rs`'s startup and
+/// `commands::windows`'s show/toggle functions apply the same saved mode
+/// instead of each guessing independently.
+pub fn companion_always_on_top(app: &tauri::AppHandle) -> bool {
+    use super::db::AppDb;
+    let Some(db) = app.try_state::<AppDb>() else { return true };
+    let Ok(conn) = db.0.lock() else { return true };
+    let json: rusqlite::Result<String> =
+        conn.query_row("SELECT widget FROM settings LIMIT 1", [], |row| row.get(0));
+    json.ok()
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
+        .and_then(|v| v.get("alwaysOnTop").and_then(|b| b.as_bool()))
+        .unwrap_or(true)
 }
 
 #[tauri::command]
-pub fn set_companion_anchor(
-    app: tauri::AppHandle,
-    watchers: tauri::State<AnchorWatchers>,
-    label: String,
-    anchor: bool,
-) -> Result<(), String> {
-    apply_anchor(&app, &watchers, &label, anchor)
+pub fn set_companion_anchor(app: tauri::AppHandle, label: String, anchor: bool) -> Result<(), String> {
+    apply_anchor(&app, &label, anchor)
 }

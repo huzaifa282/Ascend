@@ -175,7 +175,11 @@ pub fn init_db(app_handle: &AppHandle) -> rusqlite::Result<Connection> {
     let db_path = app_dir.join("ascendant.sqlite");
 
     let conn = Connection::open(db_path)?;
-    conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
+    // A second launched instance (before the single-instance plugin's callback
+    // runs, or on platforms where it's a no-op) would otherwise hit
+    // SQLITE_BUSY immediately and abort via the `expect` below — wait up to
+    // 5s for the first instance's write to finish instead.
+    conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;")?;
     run_migrations(&conn)?;
     Ok(conn)
 }

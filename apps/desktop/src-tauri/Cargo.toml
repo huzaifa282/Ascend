@@ -21,6 +21,9 @@ tauri-plugin-fs = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-log = "2"
+log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Single mutex-guarded connection, not a pool — see docs/decisions.md
@@ -37,13 +40,6 @@ lofty = "0.21"
 walkdir = "2"
 sha2 = "0.10"
 base64 = "0.22"
-
-[target.'cfg(windows)'.dependencies]
-# Desktop-anchoring for the companion widget/strip (commands/desktop_anchor.rs)
-# — the WorkerW reparenting trick is Windows-only. Pinned to the same 0.62
-# line Tauri itself pulls in (see Cargo.lock) so our HWND is the exact same
-# type as the one `WebviewWindow::hwnd()` returns, with no conversion needed.
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 # Optimized for a small, fast-starting desktop binary (plan decision #2).

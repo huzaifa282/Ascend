@@ -15,7 +15,7 @@ mod timer;
 mod tray;
 
 use commands::db::{db_batch_atomic, db_execute, db_select, init_db, AppDb};
-use commands::desktop_anchor::{apply_anchor, set_companion_anchor, AnchorWatchers};
+use commands::desktop_anchor::{apply_anchor, companion_always_on_top, set_companion_anchor};
 use commands::keychain::{keychain_delete, keychain_get, keychain_has, keychain_set};
 use commands::music_folder::scan_music_folder;
 use commands::windows::{
@@ -49,21 +49,6 @@ fn default_companion_is_compact(conn: &rusqlite::Connection) -> bool {
         .unwrap_or(false)
 }
 
-/// Reads `settings.widget.alwaysOnTop` the same ad-hoc way, so the companion
-/// window starts in the right mode immediately rather than possibly being
-/// anchored for a moment before the frontend's own effect corrects it.
-/// Default is `true` (normal floating/topmost window) — see
-/// `commands::desktop_anchor` for why "sits on the desktop" isn't the
-/// default anymore.
-fn default_always_on_top(conn: &rusqlite::Connection) -> bool {
-    let json: rusqlite::Result<String> =
-        conn.query_row("SELECT widget FROM settings LIMIT 1", [], |row| row.get(0));
-    json.ok()
-        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
-        .and_then(|v| v.get("alwaysOnTop").and_then(|b| b.as_bool()))
-        .unwrap_or(true)
-}
-
 /// Reads `settings.hotkey.combo` the same ad-hoc way — falls back to the
 /// default when there's no settings row yet (before onboarding) or the
 /// column is missing it.
@@ -78,7 +63,27 @@ fn saved_hotkey_combo(conn: &rusqlite::Connection) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // `panic = "abort"` in the release profile means a panic kills the
+    // process instantly with no trace otherwise — this hook runs
+    // synchronously before that abort, so it's the only chance to record
+    // what happened. Set before anything else can panic.
+    std::panic::set_hook(Box::new(|info| {
+        log::error!("panic: {info}");
+    }));
+
     tauri::Builder::default()
+        // Must be the first plugin registered (Tauri's own requirement) —
+        // its callback runs on a second launch instead of starting a second
+        // process, which would otherwise open the same SQLite file, register
+        // the same global hotkey, and create a duplicate tray icon/timer.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = open_main_window(app, None);
+        }))
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }))
+                .build(),
+        )
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 // `command` is a transient, hotkey-triggered popup — it has no
@@ -134,11 +139,9 @@ pub fn run() {
         .setup(|app| {
             let conn = init_db(app.handle()).expect("failed to open/migrate the database");
             let compact = default_companion_is_compact(&conn);
-            let always_on_top = default_always_on_top(&conn);
             let hotkey_combo = saved_hotkey_combo(&conn);
             app.manage(AppDb(Mutex::new(conn)));
             app.manage(TimerManager(Mutex::new(TimerState::default())));
-            app.manage(AnchorWatchers::default());
             spawn_tick_loop(app.handle().clone());
 
             tray::build_tray(app.handle())?;
@@ -159,16 +162,15 @@ pub fn run() {
             }
             let _ = show_default_companion_window(app.handle(), compact);
 
-            // Apply the saved "always on top" / "sits on the desktop" mode to
-            // both companion windows up front, so whichever one is shown
-            // (compact above picked one) is never, even briefly, in the
-            // wrong mode before the frontend's own effect would otherwise
-            // correct it.
-            {
-                let watchers = app.state::<AnchorWatchers>();
-                let _ = apply_anchor(app.handle(), &watchers, "widget", !always_on_top);
-                let _ = apply_anchor(app.handle(), &watchers, "strip", !always_on_top);
-            }
+            // Apply the saved "always on top" / "sits below everything" pin
+            // mode to both companion windows up front, so whichever one is
+            // shown (compact above picked one) is never, even briefly, in
+            // the wrong mode before the frontend's own effect would
+            // otherwise correct it. Needs AppDb, so this runs after it's
+            // managed above.
+            let always_on_top = companion_always_on_top(app.handle());
+            let _ = apply_anchor(app.handle(), "widget", !always_on_top);
+            let _ = apply_anchor(app.handle(), "strip", !always_on_top);
 
             Ok(())
         })

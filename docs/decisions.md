@@ -525,3 +525,49 @@ and a single past instant locally, instantly, for free. Only when that returns n
 provider is configured — does `extractDurationAnswer` ask the model, on a prompt and schema
 whose only job is pulling the duration out of the person's own words (never inventing one), same
 spirit as `interpretNote` but sized for a single short answer (128 max tokens vs 1024).
+
+## 2026-10-17 — Desktop-anchored widget (WorkerW) dropped; replaced with plain always-on-bottom
+
+The companion widget/strip's "sits on the desktop" mode (`commands/desktop_anchor.rs`)
+reparented the window behind the desktop icon layer via Explorer's undocumented `WorkerW`,
+the same trick Rainmeter/Wallpaper Engine use. It went through several rounds of bug reports
+against this same mechanism — undraggable, then unclosable, then a white outline from DWM's
+shadow compositing breaking on a reparented window, then the widget simply not responding to
+any input at all even after fixing those — and each fix addressed a real, separate bug in the
+technique. It was dropped after a diagnosis against the actual installed build (not just code
+reading) found two things no amount of further patching could fix:
+
+- **`WorkerW` sits *behind* the desktop icon list** (`SHELLDLL_DefView`), so the icon layer gets
+  every mouse event before anything parented to `WorkerW` ever could. This is exactly why
+  Wallpaper Engine/Lively use that layer — nothing there is meant to be interactive. A widget
+  with buttons and a command bar fundamentally cannot live there.
+- **It was the direct cause of a real cross-thread deadlock**, not just intermittent flakiness:
+  the periodic watcher thread (re-asserting the reparented style, since tao's own window-state
+  tracking silently reverts any style it doesn't know about on every ordinary window call —
+  `show`/`hide`/`set_focus`/`set_always_on_top`) held a lock while making a cross-thread Win32
+  call that synchronously waits for the main UI thread — while the main thread's own
+  `set_companion_anchor` command (Tauri 2 runs non-async commands on the main thread) was
+  itself waiting on that same lock. Two threads permanently waiting on each other; Windows
+  reports this as the whole app "Not Responding". Reparenting a window across processes also
+  ties its input queue to Explorer's, and destroying the `WorkerW` (an Explorer restart, a
+  display/DPI change, or — on at least one test machine — a live-wallpaper app resetting it)
+  destroys every window parented to it, taking the widget's WebView2 and its real `<audio>`
+  element (`StripContent.tsx`: playback only truly lives in the widget) down with it.
+
+Replaced with `WebviewWindow::set_always_on_top`/`set_always_on_bottom` — both plain,
+documented, cross-platform Tauri APIs, so `commands/desktop_anchor.rs` no longer needs the
+`windows` crate, a background watcher thread, or any synchronization at all. The frontend's
+`invoke('set_companion_anchor', { label, anchor })` call sites didn't need to change — only
+what `anchor` does natively changed. The user-visible trade-off: Win+D/Show Desktop now
+minimises the widget like any other normal window, instead of leaving it sitting behind the
+icons untouched. That's the cost of it being clickable at all.
+
+**Also hardened while in the area** (the crash this was diagnosed from was plausibly also
+hitting unrelated failure modes): `tauri-plugin-single-instance` (a second launch — autostart
+plus a manual one, or two manual launches — now focuses the existing main window instead of
+opening a second process against the same SQLite file, hotkey registration, and tray icon);
+`PRAGMA busy_timeout = 5000` in `init_db` (so a second instance's connection attempt, before
+the single-instance plugin's callback can even run, waits for a lock instead of hitting
+`SQLITE_BUSY` and aborting via `expect`); and `tauri-plugin-log` plus a `std::panic::set_hook`
+writing to it, since `panic = "abort"` in the release profile otherwise means any panic kills
+the process with zero trace — the next one now leaves a line in the log directory.

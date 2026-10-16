@@ -7,6 +7,8 @@
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+use super::desktop_anchor::{apply_anchor, companion_always_on_top};
+
 #[derive(Clone, Serialize)]
 struct NavigatePayload {
     route: String,
@@ -25,6 +27,7 @@ pub fn open_main_window(app: &AppHandle, route: Option<String>) -> Result<(), St
 }
 
 pub fn show_widget_window(app: &AppHandle) -> Result<(), String> {
+    let _ = apply_anchor(app, "widget", !companion_always_on_top(app));
     let widget = app.get_webview_window("widget").ok_or("widget window missing")?;
     widget.show().map_err(|e| e.to_string())?;
     widget.set_focus().map_err(|e| e.to_string())?;
@@ -38,12 +41,15 @@ pub fn show_widget_window(app: &AppHandle) -> Result<(), String> {
 pub fn show_default_companion_window(app: &AppHandle, compact: bool) -> Result<(), String> {
     let widget = app.get_webview_window("widget").ok_or("widget window missing")?;
     let strip = app.get_webview_window("strip").ok_or("strip window missing")?;
+    let anchor = !companion_always_on_top(app);
     if compact {
         let _ = widget.hide();
+        let _ = apply_anchor(app, "strip", anchor);
         strip.show().map_err(|e| e.to_string())?;
         strip.set_focus().map_err(|e| e.to_string())
     } else {
         let _ = strip.hide();
+        let _ = apply_anchor(app, "widget", anchor);
         widget.show().map_err(|e| e.to_string())?;
         widget.set_focus().map_err(|e| e.to_string())
     }
@@ -73,17 +79,20 @@ pub fn show_widget(app: AppHandle) -> Result<(), String> {
 pub fn toggle_companion_size(app: AppHandle) -> Result<(), String> {
     let widget = app.get_webview_window("widget").ok_or("widget window missing")?;
     let strip = app.get_webview_window("strip").ok_or("strip window missing")?;
+    let anchor = !companion_always_on_top(&app);
 
     if widget.is_visible().map_err(|e| e.to_string())? {
         let pos = widget.outer_position().map_err(|e| e.to_string())?;
         strip.set_position(pos).map_err(|e| e.to_string())?;
         widget.hide().map_err(|e| e.to_string())?;
+        let _ = apply_anchor(&app, "strip", anchor);
         strip.show().map_err(|e| e.to_string())?;
         strip.set_focus().map_err(|e| e.to_string())?;
     } else {
         let pos = strip.outer_position().map_err(|e| e.to_string())?;
         widget.set_position(pos).map_err(|e| e.to_string())?;
         strip.hide().map_err(|e| e.to_string())?;
+        let _ = apply_anchor(&app, "widget", anchor);
         widget.show().map_err(|e| e.to_string())?;
         widget.set_focus().map_err(|e| e.to_string())?;
     }

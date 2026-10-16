@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { xpNeeded, DEFAULT_RULESET } from '@ascendant/engine';
@@ -23,39 +23,23 @@ export function WidgetContent() {
   const { data: widgetSettings } = useWidgetSettings();
   const patchWidgetSettings = usePatchWidgetSettings();
   const { state: timer, start, pause, resume, stop, addFiveMinutes } = useTimer();
-  // Default is unpinned: the window sits anchored to the desktop (behind
-  // every other window) rather than floating on top of everything. Pinning
-  // switches it to the old floating-on-top behaviour instead — see
-  // commands/desktop_anchor.rs for how "unpinned" is actually implemented.
-  const [pinned, setPinned] = useState(false);
+  // Default is pinned: the window floats on top of everything. Unpinning
+  // sits it below every other normal window instead (still above the
+  // desktop) — see commands/desktop_anchor.rs.
+  const [pinned, setPinned] = useState(true);
 
-  // Rust's own setup() already applies the saved anchor state to this
-  // window before it's ever shown, reading the same settings row directly
-  // (see lib.rs) — so the first time this resolves here is always a
-  // no-op repeat of what Rust already did, and re-sending it would fire a
-  // second, near-simultaneous SetParent/SetWindowLongPtr on the same HWND
-  // while WebView2 is still doing its initial paint. On a reparenting trick
-  // this undocumented and DPI/compositor-sensitive (desktop_anchor.rs),
-  // that race has broken the window's transparent compositing and
-  // hit-testing outright — so `appliedInitialAnchor` skips exactly that one
-  // redundant call and nothing else. Every later resolution here is a
-  // genuine change (this window's own pin click, or "Always on top" toggled
-  // from Settings in the main window) and does need to be forwarded, since
-  // each window's anchor state lives natively, not in this shared setting.
-  const appliedInitialAnchor = useRef(false);
+  // Rust's setup() already applies the saved mode to this window before it's
+  // ever shown, so the first resolution here just re-sends the same value —
+  // harmless, since this is a plain, cheap Tauri window call now.
   useEffect(() => {
     if (!widgetSettings) return;
     setPinned(widgetSettings.alwaysOnTop);
-    if (!appliedInitialAnchor.current) {
-      appliedInitialAnchor.current = true;
-      return;
-    }
     void invoke('set_companion_anchor', { label: 'widget', anchor: !widgetSettings.alwaysOnTop });
   }, [widgetSettings]);
 
   // Optimistic local flip for instant icon feedback; the effect above sends
   // the actual native command once the DB write round-trips back through
-  // `widgetSettings` — see its comment for why it isn't sent from here too.
+  // `widgetSettings`.
   const togglePinned = () => {
     setPinned((p) => !p);
     patchWidgetSettings.mutate({ alwaysOnTop: !pinned });
